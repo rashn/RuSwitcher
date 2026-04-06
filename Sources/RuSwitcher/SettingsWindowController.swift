@@ -150,16 +150,22 @@ final class SettingsWindowController {
         view.addSubview(versionLabel)
         y -= 40
 
+        // Кнопка "Звезда на GitHub"
+        let starBtn = NSButton(title: L10n.settingsStarOnGithub, target: self, action: #selector(openGitHub))
+        starBtn.frame = NSRect(x: 20, y: y, width: 420, height: 32)
+        starBtn.bezelStyle = .rounded
+        view.addSubview(starBtn)
+        y -= 40
+
         // Кнопка доната
         let donateBtn = NSButton(title: L10n.settingsDonate, target: self, action: #selector(openDonate))
         donateBtn.frame = NSRect(x: 20, y: y, width: 200, height: 32)
         donateBtn.bezelStyle = .rounded
         view.addSubview(donateBtn)
-        y -= 40
 
         // Кнопка контакта
         let contactBtn = NSButton(title: L10n.settingsContact, target: self, action: #selector(openContact))
-        contactBtn.frame = NSRect(x: 20, y: y, width: 200, height: 32)
+        contactBtn.frame = NSRect(x: 230, y: y, width: 200, height: 32)
         contactBtn.bezelStyle = .rounded
         view.addSubview(contactBtn)
         y -= 40
@@ -307,6 +313,12 @@ final class SettingsWindowController {
 
     @objc private func debugLogChanged(_ sender: NSButton) {
         SettingsManager.shared.debugLogEnabled = sender.state == .on
+    }
+
+    @objc private func openGitHub() {
+        if let url = URL(string: "https://github.com/rashn/RuSwitcher") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc private func openDonate() {

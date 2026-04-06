@@ -37,6 +37,7 @@ enum L10n {
     static var settingsShowLog: String { s("settings.showLog") }
     static var settingsSendLog: String { s("settings.sendLog") }
     static var settingsHotkey: String { s("settings.hotkey") }
+    static var settingsStarOnGithub: String { s("settings.starOnGithub") }
     static var settingsLanguage: String { s("settings.language") }
     static var settingsLanguageAuto: String { s("settings.languageAuto") }
 
@@ -133,6 +134,7 @@ enum L10n {
             "settings.showLog": "Show Log File",
             "settings.sendLog": "Send Log",
             "settings.hotkey": "⌥ Alt (tap) — convert last word\nAlso works on selected text\nDouble Alt — reverse conversion",
+            "settings.starOnGithub": "⭐ Star on GitHub — help the project grow!",
             "settings.language": "Interface language:",
             "settings.languageAuto": "System default",
 
@@ -181,6 +183,7 @@ enum L10n {
             "settings.showLog": "Показать файл лога",
             "settings.sendLog": "Отправить лог",
             "settings.hotkey": "⌥ Alt (тап) — конвертировать последнее слово\nРаботает на выделенном тексте\nПовторный Alt — обратная конвертация",
+            "settings.starOnGithub": "⭐ Поставить звезду на GitHub — помогите проекту!",
             "settings.language": "Язык интерфейса:",
             "settings.languageAuto": "Системный",
 
