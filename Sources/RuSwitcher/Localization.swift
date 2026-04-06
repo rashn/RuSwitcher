@@ -19,6 +19,10 @@ enum L10n {
     static var wizardInputMonitoringText: String { s("wizard.inputMonitoring.text") }
     static var wizardOpenSettings: String { s("wizard.openSettings") }
     static var wizardLater: String { s("wizard.later") }
+    static var wizardLaunchAtLoginTitle: String { s("wizard.launchAtLogin.title") }
+    static var wizardLaunchAtLoginText: String { s("wizard.launchAtLogin.text") }
+    static var wizardYes: String { s("wizard.yes") }
+    static var wizardNo: String { s("wizard.no") }
 
     // MARK: - Настройки
     static var settingsTitle: String { s("settings.title") }
@@ -38,6 +42,7 @@ enum L10n {
     static var settingsSendLog: String { s("settings.sendLog") }
     static var settingsHotkey: String { s("settings.hotkey") }
     static var settingsStarOnGithub: String { s("settings.starOnGithub") }
+    static var menuStarOnGithub: String { s("menu.starOnGithub") }
     static var settingsLanguage: String { s("settings.language") }
     static var settingsLanguageAuto: String { s("settings.languageAuto") }
 
@@ -107,6 +112,7 @@ enum L10n {
             "menu.settings": "Settings…",
             "menu.checkUpdates": "Check for Updates…",
             "menu.donate": "Support Development ❤️",
+            "menu.starOnGithub": "⭐ Star on GitHub",
             "menu.quit": "Quit",
 
             "wizard.permissionsReset.title": "Permissions Reset After Update",
@@ -117,6 +123,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Now Input Monitoring permission is needed.\n\n⚠️ macOS will require an app restart after adding.\nRuSwitcher will restart automatically.",
             "wizard.openSettings": "Open Settings",
             "wizard.later": "Later",
+            "wizard.launchAtLogin.title": "Launch at Login",
+            "wizard.launchAtLogin.text": "Would you like RuSwitcher to start automatically when you log in?\n\nYou can change this later in Settings.",
+            "wizard.yes": "Yes",
+            "wizard.no": "No",
 
             "settings.title": "RuSwitcher — Settings",
             "settings.tab.general": "General",
@@ -156,6 +166,7 @@ enum L10n {
             "menu.settings": "Настройки…",
             "menu.checkUpdates": "Проверить обновления…",
             "menu.donate": "Поддержать разработку ❤️",
+            "menu.starOnGithub": "⭐ Звезда на GitHub",
             "menu.quit": "Выход",
 
             "wizard.permissionsReset.title": "Разрешения сброшены после обновления",
@@ -166,6 +177,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Теперь нужно разрешение Input Monitoring.\n\n⚠️ macOS потребует перезапуск приложения.\nRuSwitcher перезапустится автоматически.",
             "wizard.openSettings": "Открыть настройки",
             "wizard.later": "Позже",
+            "wizard.launchAtLogin.title": "Автозагрузка",
+            "wizard.launchAtLogin.text": "Запускать RuSwitcher автоматически при входе в систему?\n\nЭто можно изменить позже в Настройках.",
+            "wizard.yes": "Да",
+            "wizard.no": "Нет",
 
             "settings.title": "RuSwitcher — Настройки",
             "settings.tab.general": "Основные",
@@ -205,6 +220,7 @@ enum L10n {
             "menu.settings": "Einstellungen…",
             "menu.checkUpdates": "Nach Updates suchen…",
             "menu.donate": "Entwicklung unterstützen ❤️",
+            "menu.starOnGithub": "⭐ Stern auf GitHub",
             "menu.quit": "Beenden",
             "wizard.accessibility.title": "Schritt 1 von 2: Bedienungshilfen",
             "wizard.accessibility.text": "RuSwitcher benötigt die Berechtigung für Bedienungshilfen.\n\nDie Einstellungen werden geöffnet — fügen Sie RuSwitcher hinzu.",
@@ -212,6 +228,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Jetzt wird die Berechtigung für Eingabeüberwachung benötigt.\n\n⚠️ macOS erfordert einen Neustart der App.",
             "wizard.openSettings": "Einstellungen öffnen",
             "wizard.later": "Später",
+            "wizard.launchAtLogin.title": "Beim Anmelden starten",
+            "wizard.launchAtLogin.text": "Möchten Sie RuSwitcher beim Anmelden automatisch starten?\n\nDies können Sie später in den Einstellungen ändern.",
+            "wizard.yes": "Ja",
+            "wizard.no": "Nein",
             "settings.title": "RuSwitcher — Einstellungen",
             "settings.tab.general": "Allgemein",
             "settings.tab.about": "Über",
@@ -228,8 +248,11 @@ enum L10n {
             "settings.showLog": "Protokolldatei anzeigen",
             "settings.sendLog": "Protokoll senden",
             "settings.hotkey": "⌥ Alt (Tipp) — letztes Wort konvertieren\nFunktioniert auch mit markiertem Text\nDoppeltes Alt — Rückkonvertierung",
+            "settings.starOnGithub": "⭐ Stern auf GitHub — helfen Sie dem Projekt!",
             "settings.language": "Sprache der Oberfläche:",
             "settings.languageAuto": "Systemstandard",
+            "wizard.permissionsReset.title": "Berechtigungen nach Update zurückgesetzt",
+            "wizard.permissionsReset.text": "macOS hat die Berechtigungen nach dem App-Update zurückgesetzt.\n\nRuSwitcher entfernt alte Einträge und fordert Berechtigungen erneut an.\nSie müssen nur die Schalter umlegen.",
             "update.available": "Update verfügbar",
             "update.newVersion": "Neue Version:",
             "update.download": "Herunterladen",
@@ -248,6 +271,7 @@ enum L10n {
             "menu.settings": "Préférences…",
             "menu.checkUpdates": "Rechercher les mises à jour…",
             "menu.donate": "Soutenir le développement ❤️",
+            "menu.starOnGithub": "⭐ Étoile sur GitHub",
             "menu.quit": "Quitter",
             "wizard.accessibility.title": "Étape 1 sur 2 : Accessibilité",
             "wizard.accessibility.text": "RuSwitcher a besoin de l'autorisation Accessibilité.\n\nLes réglages vont s'ouvrir — ajoutez RuSwitcher.",
@@ -255,6 +279,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "L'autorisation de surveillance de l'entrée est maintenant nécessaire.\n\n⚠️ macOS demandera un redémarrage de l'app.",
             "wizard.openSettings": "Ouvrir les réglages",
             "wizard.later": "Plus tard",
+            "wizard.launchAtLogin.title": "Lancer au démarrage",
+            "wizard.launchAtLogin.text": "Voulez-vous que RuSwitcher démarre automatiquement à l'ouverture de session ?\n\nVous pourrez modifier ce réglage plus tard dans les Préférences.",
+            "wizard.yes": "Oui",
+            "wizard.no": "Non",
             "settings.title": "RuSwitcher — Préférences",
             "settings.tab.general": "Général",
             "settings.tab.about": "À propos",
@@ -271,8 +299,11 @@ enum L10n {
             "settings.showLog": "Afficher le journal",
             "settings.sendLog": "Envoyer le journal",
             "settings.hotkey": "⌥ Alt (tap) — convertir le dernier mot\nFonctionne aussi sur le texte sélectionné\nDouble Alt — conversion inverse",
+            "settings.starOnGithub": "⭐ Étoile sur GitHub — aidez le projet !",
             "settings.language": "Langue de l'interface :",
             "settings.languageAuto": "Système par défaut",
+            "wizard.permissionsReset.title": "Autorisations réinitialisées après mise à jour",
+            "wizard.permissionsReset.text": "macOS a réinitialisé les autorisations suite à la mise à jour.\n\nRuSwitcher supprimera les anciennes entrées et redemandera les autorisations.\nVous n'avez qu'à activer les boutons.",
             "update.available": "Mise à jour disponible",
             "update.newVersion": "Nouvelle version :",
             "update.download": "Télécharger",
@@ -291,6 +322,7 @@ enum L10n {
             "menu.settings": "Ajustes…",
             "menu.checkUpdates": "Buscar actualizaciones…",
             "menu.donate": "Apoyar el desarrollo ❤️",
+            "menu.starOnGithub": "⭐ Estrella en GitHub",
             "menu.quit": "Salir",
             "wizard.accessibility.title": "Paso 1 de 2: Accesibilidad",
             "wizard.accessibility.text": "RuSwitcher necesita permiso de Accesibilidad.\n\nSe abrirán los ajustes — añada RuSwitcher.",
@@ -298,6 +330,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Ahora se necesita el permiso de monitoreo de entrada.\n\n⚠️ macOS requerirá reiniciar la app.",
             "wizard.openSettings": "Abrir ajustes",
             "wizard.later": "Más tarde",
+            "wizard.launchAtLogin.title": "Iniciar al arrancar",
+            "wizard.launchAtLogin.text": "¿Desea que RuSwitcher se inicie automáticamente al iniciar sesión?\n\nPuede cambiar esto más tarde en Ajustes.",
+            "wizard.yes": "Sí",
+            "wizard.no": "No",
             "settings.title": "RuSwitcher — Ajustes",
             "settings.tab.general": "General",
             "settings.tab.about": "Acerca de",
@@ -314,8 +350,11 @@ enum L10n {
             "settings.showLog": "Mostrar archivo de registro",
             "settings.sendLog": "Enviar registro",
             "settings.hotkey": "⌥ Alt (toque) — convertir última palabra\nFunciona con texto seleccionado\nDoble Alt — conversión inversa",
+            "settings.starOnGithub": "⭐ Estrella en GitHub — ¡ayuda al proyecto!",
             "settings.language": "Idioma de la interfaz:",
             "settings.languageAuto": "Predeterminado del sistema",
+            "wizard.permissionsReset.title": "Permisos restablecidos tras actualización",
+            "wizard.permissionsReset.text": "macOS ha restablecido los permisos tras la actualización.\n\nRuSwitcher eliminará las entradas antiguas y solicitará permisos de nuevo.\nSolo necesita activar los interruptores.",
             "update.available": "Actualización disponible",
             "update.newVersion": "Nueva versión:",
             "update.download": "Descargar",
@@ -334,6 +373,7 @@ enum L10n {
             "menu.settings": "Configurações…",
             "menu.checkUpdates": "Verificar atualizações…",
             "menu.donate": "Apoiar o desenvolvimento ❤️",
+            "menu.starOnGithub": "⭐ Estrela no GitHub",
             "menu.quit": "Sair",
             "wizard.openSettings": "Abrir configurações",
             "wizard.later": "Mais tarde",
@@ -346,6 +386,7 @@ enum L10n {
             "settings.autoDetect": "Detecção automática",
             "settings.donate": "Apoiar o desenvolvimento ❤️",
             "settings.contact": "Contatar o desenvolvedor",
+            "settings.starOnGithub": "⭐ Estrela no GitHub — ajude o projeto!",
             "settings.language": "Idioma da interface:",
             "settings.languageAuto": "Padrão do sistema",
             "update.download": "Baixar",
@@ -360,6 +401,7 @@ enum L10n {
             "menu.settings": "设置…",
             "menu.checkUpdates": "检查更新…",
             "menu.donate": "支持开发 ❤️",
+            "menu.starOnGithub": "⭐ 在 GitHub 上点星",
             "menu.quit": "退出",
             "wizard.openSettings": "打开设置",
             "wizard.later": "稍后",
@@ -372,6 +414,7 @@ enum L10n {
             "settings.autoDetect": "自动检测",
             "settings.donate": "支持开发 ❤️",
             "settings.contact": "联系开发者",
+            "settings.starOnGithub": "⭐ 在 GitHub 上点星 — 帮助项目成长！",
             "settings.language": "界面语言：",
             "settings.languageAuto": "跟随系统",
             "update.download": "下载",
@@ -386,6 +429,7 @@ enum L10n {
             "menu.settings": "設定…",
             "menu.checkUpdates": "アップデートを確認…",
             "menu.donate": "開発を支援 ❤️",
+            "menu.starOnGithub": "⭐ GitHub でスターする",
             "menu.quit": "終了",
             "wizard.openSettings": "設定を開く",
             "wizard.later": "後で",
@@ -398,6 +442,7 @@ enum L10n {
             "settings.autoDetect": "自動検出",
             "settings.donate": "開発を支援 ❤️",
             "settings.contact": "開発者に連絡",
+            "settings.starOnGithub": "⭐ GitHub でスター — プロジェクトを応援！",
             "settings.language": "インターフェース言語：",
             "settings.languageAuto": "システムデフォルト",
             "update.download": "ダウンロード",
@@ -412,6 +457,7 @@ enum L10n {
             "menu.settings": "설정…",
             "menu.checkUpdates": "업데이트 확인…",
             "menu.donate": "개발 지원 ❤️",
+            "menu.starOnGithub": "⭐ GitHub에서 스타하기",
             "menu.quit": "종료",
             "wizard.openSettings": "설정 열기",
             "wizard.later": "나중에",
@@ -424,6 +470,7 @@ enum L10n {
             "settings.autoDetect": "자동 감지",
             "settings.donate": "개발 지원 ❤️",
             "settings.contact": "개발자 연락",
+            "settings.starOnGithub": "⭐ GitHub에서 스타 — 프로젝트를 도와주세요!",
             "settings.language": "인터페이스 언어:",
             "settings.languageAuto": "시스템 기본값",
             "update.download": "다운로드",
@@ -438,6 +485,7 @@ enum L10n {
             "menu.settings": "Налаштування…",
             "menu.checkUpdates": "Перевірити оновлення…",
             "menu.donate": "Підтримати розробку ❤️",
+            "menu.starOnGithub": "⭐ Зірка на GitHub",
             "menu.quit": "Вихід",
 
             "wizard.permissionsReset.title": "Дозволи скинуті після оновлення",
@@ -448,6 +496,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Тепер потрібен дозвіл Input Monitoring.\n\n⚠️ macOS вимагатиме перезапуск програми.\nRuSwitcher перезапуститься автоматично.",
             "wizard.openSettings": "Відкрити налаштування",
             "wizard.later": "Пізніше",
+            "wizard.launchAtLogin.title": "Автозавантаження",
+            "wizard.launchAtLogin.text": "Запускати RuSwitcher автоматично при вході в систему?\n\nЦе можна змінити пізніше в Налаштуваннях.",
+            "wizard.yes": "Так",
+            "wizard.no": "Ні",
 
             "settings.title": "RuSwitcher — Налаштування",
             "settings.tab.general": "Загальні",
@@ -465,6 +517,7 @@ enum L10n {
             "settings.showLog": "Показати файл логу",
             "settings.sendLog": "Надіслати лог",
             "settings.hotkey": "⌥ Alt (тап) — конвертувати останнє слово\nПрацює на виділеному тексті\nПовторний Alt — зворотна конвертація",
+            "settings.starOnGithub": "⭐ Зірка на GitHub — допоможіть проєкту!",
             "settings.language": "Мова інтерфейсу:",
             "settings.languageAuto": "Системна",
 
@@ -486,6 +539,7 @@ enum L10n {
             "menu.settings": "Налады…",
             "menu.checkUpdates": "Праверыць абнаўленні…",
             "menu.donate": "Падтрымаць распрацоўку ❤️",
+            "menu.starOnGithub": "⭐ Зорка на GitHub",
             "menu.quit": "Выхад",
 
             "wizard.permissionsReset.title": "Дазволы скінуты пасля абнаўлення",
@@ -496,6 +550,10 @@ enum L10n {
             "wizard.inputMonitoring.text": "Цяпер патрэбен дазвол Input Monitoring.\n\n⚠️ macOS запатрабуе перазапуск праграмы.\nRuSwitcher перазапусціцца аўтаматычна.",
             "wizard.openSettings": "Адкрыць налады",
             "wizard.later": "Пазней",
+            "wizard.launchAtLogin.title": "Аўтазагрузка",
+            "wizard.launchAtLogin.text": "Запускаць RuSwitcher аўтаматычна пры ўваходзе ў сістэму?\n\nГэта можна змяніць пазней у Наладах.",
+            "wizard.yes": "Так",
+            "wizard.no": "Не",
 
             "settings.title": "RuSwitcher — Налады",
             "settings.tab.general": "Агульныя",
@@ -513,6 +571,7 @@ enum L10n {
             "settings.showLog": "Паказаць файл лога",
             "settings.sendLog": "Адправіць лог",
             "settings.hotkey": "⌥ Alt (тап) — канвертаваць апошняе слова\nПрацуе на вылучаным тэксце\nПаўторны Alt — зваротная канвертацыя",
+            "settings.starOnGithub": "⭐ Зорка на GitHub — дапамажыце праекту!",
             "settings.language": "Мова інтэрфейсу:",
             "settings.languageAuto": "Сістэмная",
 
@@ -534,6 +593,7 @@ enum L10n {
             "menu.settings": "Ustawienia…",
             "menu.checkUpdates": "Sprawdź aktualizacje…",
             "menu.donate": "Wesprzyj rozwój ❤️",
+            "menu.starOnGithub": "⭐ Gwiazdka na GitHub",
             "menu.quit": "Zakończ",
             "wizard.openSettings": "Otwórz ustawienia",
             "wizard.later": "Później",
@@ -546,6 +606,7 @@ enum L10n {
             "settings.autoDetect": "Automatyczne wykrywanie",
             "settings.donate": "Wesprzyj rozwój ❤️",
             "settings.contact": "Skontaktuj się z deweloperem",
+            "settings.starOnGithub": "⭐ Gwiazdka na GitHub — pomóż projektowi!",
             "settings.language": "Język interfejsu:",
             "settings.languageAuto": "Domyślny systemowy",
             "update.download": "Pobierz",

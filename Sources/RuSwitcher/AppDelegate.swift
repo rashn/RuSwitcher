@@ -12,6 +12,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupStatusItem()
         setupSettingsCallbacks()
+        syncLoginItem()
         runPermissionWizard()
         UpdateChecker.checkOnLaunch()
     }
@@ -22,6 +23,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if let menuItem = self.statusItem.menu?.item(at: 0) {
                 menuItem.state = enabled ? .on : .off
             }
+        }
+    }
+
+    // MARK: - Login Item Sync
+
+    /// Синхронизирует состояние автозагрузки с системой при старте.
+    /// Если галочка включена, но Login Item потерян (переустановка/обновление) — перерегистрирует.
+    /// Если галочка выключена, но Login Item есть — снимает.
+    private func syncLoginItem() {
+        let settings = SettingsManager.shared
+        let wanted = settings.launchAtLogin
+        let status = settings.loginItemStatus
+
+        rslog("Login item sync: wanted=\(wanted) status=\(status.rawValue)")
+
+        if wanted && status != .enabled {
+            // Галочка стоит, но Login Item не активен — перерегистрируем
+            rslog("Re-registering login item...")
+            settings.launchAtLogin = true  // setter вызовет doUpdateLoginItem
+        } else if !wanted && status == .enabled {
+            // Галочка снята, но Login Item активен — убираем
+            rslog("Unregistering stale login item...")
+            settings.launchAtLogin = false
         }
     }
 
@@ -185,6 +209,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         updateStatusIcon()
         rslog("Monitoring started successfully")
+
+        // Предлагаем автозагрузку при первом запуске
+        offerLaunchAtLoginIfNeeded()
+    }
+
+    /// Предлагает включить автозагрузку при первом запуске (один раз)
+    private func offerLaunchAtLoginIfNeeded() {
+        let settings = SettingsManager.shared
+        guard !settings.launchAtLoginAsked else { return }
+        settings.launchAtLoginAsked = true
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = L10n.wizardLaunchAtLoginTitle
+        alert.informativeText = L10n.wizardLaunchAtLoginText
+        alert.addButton(withTitle: L10n.wizardYes)
+        alert.addButton(withTitle: L10n.wizardNo)
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            settings.launchAtLogin = true
+            rslog("User enabled launch at login")
+        } else {
+            rslog("User declined launch at login")
+        }
     }
 
     // MARK: - Status Item
@@ -218,6 +267,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let donateItem = NSMenuItem(title: L10n.menuDonate, action: #selector(openDonate), keyEquivalent: "")
         donateItem.target = self
         menu.addItem(donateItem)
+
+        let starItem = NSMenuItem(title: L10n.menuStarOnGithub, action: #selector(openGitHub), keyEquivalent: "")
+        starItem.target = self
+        menu.addItem(starItem)
 
         menu.addItem(NSMenuItem.separator())
 
@@ -257,6 +310,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openDonate() {
         if let url = URL(string: SettingsManager.shared.donateURL) {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    @objc private func openGitHub() {
+        if let url = URL(string: "https://github.com/rashn/RuSwitcher") {
             NSWorkspace.shared.open(url)
         }
     }

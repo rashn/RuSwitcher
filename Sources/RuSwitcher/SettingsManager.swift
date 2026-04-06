@@ -18,6 +18,7 @@ final class SettingsManager: @unchecked Sendable {
         static let launchAtLogin = "com.ruswitcher.launchAtLogin"
         static let interfaceLanguage = "com.ruswitcher.interfaceLanguage"
         static let permissionsWereGranted = "com.ruswitcher.permissionsWereGranted"
+        static let launchAtLoginAsked = "com.ruswitcher.launchAtLoginAsked"
     }
 
     private init() {}
@@ -80,6 +81,11 @@ final class SettingsManager: @unchecked Sendable {
     var permissionsWereGranted: Bool {
         get { defaults.bool(forKey: Keys.permissionsWereGranted) }
         set { defaults.set(newValue, forKey: Keys.permissionsWereGranted) }
+    }
+
+    var launchAtLoginAsked: Bool {
+        get { defaults.bool(forKey: Keys.launchAtLoginAsked) }
+        set { defaults.set(newValue, forKey: Keys.launchAtLoginAsked) }
     }
 
     var donateURL: String { "https://boosty.to/ruswitcher" }
