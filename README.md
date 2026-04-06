@@ -55,7 +55,14 @@ Typed `ghbdtn` instead of `привет`? Just tap **⌥ Alt**.
 
 ## Installation / Установка
 
-### Download / Скачать
+### Homebrew
+
+```bash
+brew tap rashn/ruswitcher
+brew install --cask ruswitcher
+```
+
+### Download DMG / Скачать DMG
 
 Download the latest `.dmg` from [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), open it and drag RuSwitcher to Applications.
 
