@@ -1,0 +1,553 @@
+import Foundation
+
+/// Локализация интерфейса на 11 языков (вкомпилированные строки)
+enum L10n {
+    // MARK: - Меню
+    static var menuAutoSwitch: String { s("menu.autoSwitch") }
+    static var menuCheckPermissions: String { s("menu.checkPermissions") }
+    static var menuSettings: String { s("menu.settings") }
+    static var menuCheckUpdates: String { s("menu.checkUpdates") }
+    static var menuDonate: String { s("menu.donate") }
+    static var menuQuit: String { s("menu.quit") }
+
+    // MARK: - Визард разрешений
+    static var wizardPermissionsResetTitle: String { s("wizard.permissionsReset.title") }
+    static var wizardPermissionsResetText: String { s("wizard.permissionsReset.text") }
+    static var wizardAccessibilityTitle: String { s("wizard.accessibility.title") }
+    static var wizardAccessibilityText: String { s("wizard.accessibility.text") }
+    static var wizardInputMonitoringTitle: String { s("wizard.inputMonitoring.title") }
+    static var wizardInputMonitoringText: String { s("wizard.inputMonitoring.text") }
+    static var wizardOpenSettings: String { s("wizard.openSettings") }
+    static var wizardLater: String { s("wizard.later") }
+
+    // MARK: - Настройки
+    static var settingsTitle: String { s("settings.title") }
+    static var settingsTabGeneral: String { s("settings.tab.general") }
+    static var settingsTabAbout: String { s("settings.tab.about") }
+    static var settingsTabAdvanced: String { s("settings.tab.advanced") }
+    static var settingsAutoSwitch: String { s("settings.autoSwitch") }
+    static var settingsLaunchAtLogin: String { s("settings.launchAtLogin") }
+    static var settingsLayout1: String { s("settings.layout1") }
+    static var settingsLayout2: String { s("settings.layout2") }
+    static var settingsAutoDetect: String { s("settings.autoDetect") }
+    static var settingsVersion: String { s("settings.version") }
+    static var settingsDonate: String { s("settings.donate") }
+    static var settingsContact: String { s("settings.contact") }
+    static var settingsDebugLog: String { s("settings.debugLog") }
+    static var settingsShowLog: String { s("settings.showLog") }
+    static var settingsSendLog: String { s("settings.sendLog") }
+    static var settingsHotkey: String { s("settings.hotkey") }
+    static var settingsLanguage: String { s("settings.language") }
+    static var settingsLanguageAuto: String { s("settings.languageAuto") }
+
+    // MARK: - Обновления
+    static var updateAvailable: String { s("update.available") }
+    static var updateNewVersion: String { s("update.newVersion") }
+    static var updateDownload: String { s("update.download") }
+    static var updateSkip: String { s("update.skip") }
+    static var updateLater: String { s("update.later") }
+    static var updateUpToDate: String { s("update.upToDate") }
+    static var updateLatestInstalled: String { s("update.latestInstalled") }
+    static var updateCheckFailed: String { s("update.checkFailed") }
+    static var updateCheckFailedDetail: String { s("update.checkFailedDetail") }
+
+    // MARK: - Language names (для выпадающего списка)
+
+    /// Названия языков на их родном языке
+    static let languageNames: [(code: String, name: String)] = [
+        ("en", "English"),
+        ("ru", "Русский"),
+        ("uk", "Українська"),
+        ("be", "Беларуская"),
+        ("de", "Deutsch"),
+        ("fr", "Français"),
+        ("es", "Español"),
+        ("pt", "Português"),
+        ("pl", "Polski"),
+        ("zh", "中文"),
+        ("ja", "日本語"),
+        ("ko", "한국어"),
+    ]
+
+    // MARK: - Private
+
+    nonisolated(unsafe) private static var currentLang: String = detectLanguage()
+
+    static let supportedLanguages = Set(["en", "ru", "de", "fr", "es", "pt", "zh", "ja", "ko", "uk", "pl", "be"])
+
+    private static func detectLanguage() -> String {
+        // Проверяем принудительный язык из настроек
+        let forced = UserDefaults.standard.string(forKey: "com.ruswitcher.interfaceLanguage") ?? ""
+        if !forced.isEmpty && supportedLanguages.contains(forced) {
+            return forced
+        }
+        // Авто-определение по системе
+        let preferred = Locale.preferredLanguages.first ?? "en"
+        let code = String(preferred.prefix(2))
+        return supportedLanguages.contains(code) ? code : "en"
+    }
+
+    /// Перезагрузить язык (вызывается при смене в настройках)
+    static func reloadLanguage() {
+        currentLang = detectLanguage()
+    }
+
+    private static func s(_ key: String) -> String {
+        strings[currentLang]?[key] ?? strings["en"]![key] ?? key
+    }
+
+    // MARK: - Все строки
+
+    private static let strings: [String: [String: String]] = [
+        // ========== ENGLISH ==========
+        "en": [
+            "menu.autoSwitch": "Auto-switch",
+            "menu.checkPermissions": "Check Permissions…",
+            "menu.settings": "Settings…",
+            "menu.checkUpdates": "Check for Updates…",
+            "menu.donate": "Support Development ❤️",
+            "menu.quit": "Quit",
+
+            "wizard.permissionsReset.title": "Permissions Reset After Update",
+            "wizard.permissionsReset.text": "macOS has reset permissions because the app was updated.\n\nRuSwitcher will remove old entries and request permissions again.\nYou just need to flip the toggles.",
+            "wizard.accessibility.title": "Step 1 of 2: Accessibility",
+            "wizard.accessibility.text": "RuSwitcher needs Accessibility permission.\n\nSettings will open — add RuSwitcher.\nThe app will detect it automatically.",
+            "wizard.inputMonitoring.title": "Step 2 of 2: Input Monitoring",
+            "wizard.inputMonitoring.text": "Now Input Monitoring permission is needed.\n\n⚠️ macOS will require an app restart after adding.\nRuSwitcher will restart automatically.",
+            "wizard.openSettings": "Open Settings",
+            "wizard.later": "Later",
+
+            "settings.title": "RuSwitcher — Settings",
+            "settings.tab.general": "General",
+            "settings.tab.about": "About",
+            "settings.tab.advanced": "Advanced",
+            "settings.autoSwitch": "Auto-switch layout",
+            "settings.launchAtLogin": "Launch at login",
+            "settings.layout1": "Layout 1:",
+            "settings.layout2": "Layout 2:",
+            "settings.autoDetect": "Auto-detect",
+            "settings.version": "Lightweight alternative to PuntoSwitcher",
+            "settings.donate": "Support Development ❤️",
+            "settings.contact": "Contact Developer",
+            "settings.debugLog": "Debug logging",
+            "settings.showLog": "Show Log File",
+            "settings.sendLog": "Send Log",
+            "settings.hotkey": "⌥ Alt (tap) — convert last word\nAlso works on selected text\nDouble Alt — reverse conversion",
+            "settings.language": "Interface language:",
+            "settings.languageAuto": "System default",
+
+            "update.available": "Update Available",
+            "update.newVersion": "New version:",
+            "update.download": "Download",
+            "update.skip": "Skip",
+            "update.later": "Later",
+            "update.upToDate": "Up to Date",
+            "update.latestInstalled": "You have the latest version installed.",
+            "update.checkFailed": "Update Check Failed",
+            "update.checkFailedDetail": "Could not connect to the update server. Please check your internet connection.",
+        ],
+
+        // ========== РУССКИЙ ==========
+        "ru": [
+            "menu.autoSwitch": "Автопереключение",
+            "menu.checkPermissions": "Проверить разрешения…",
+            "menu.settings": "Настройки…",
+            "menu.checkUpdates": "Проверить обновления…",
+            "menu.donate": "Поддержать разработку ❤️",
+            "menu.quit": "Выход",
+
+            "wizard.permissionsReset.title": "Разрешения сброшены после обновления",
+            "wizard.permissionsReset.text": "macOS сбросил разрешения из-за обновления программы.\n\nRuSwitcher удалит старые записи и запросит разрешения заново.\nВам нужно только включить тумблеры.",
+            "wizard.accessibility.title": "Шаг 1 из 2: Универсальный доступ",
+            "wizard.accessibility.text": "RuSwitcher нужно разрешение Accessibility.\n\nОткроются настройки — добавьте RuSwitcher.\nПрограмма определит автоматически.",
+            "wizard.inputMonitoring.title": "Шаг 2 из 2: Мониторинг ввода",
+            "wizard.inputMonitoring.text": "Теперь нужно разрешение Input Monitoring.\n\n⚠️ macOS потребует перезапуск приложения.\nRuSwitcher перезапустится автоматически.",
+            "wizard.openSettings": "Открыть настройки",
+            "wizard.later": "Позже",
+
+            "settings.title": "RuSwitcher — Настройки",
+            "settings.tab.general": "Основные",
+            "settings.tab.about": "О программе",
+            "settings.tab.advanced": "Расширенные",
+            "settings.autoSwitch": "Автопереключение раскладки",
+            "settings.launchAtLogin": "Запускать при входе",
+            "settings.layout1": "Раскладка 1:",
+            "settings.layout2": "Раскладка 2:",
+            "settings.autoDetect": "Автоопределение",
+            "settings.version": "Лёгкая альтернатива PuntoSwitcher",
+            "settings.donate": "Поддержать разработку ❤️",
+            "settings.contact": "Связаться с разработчиком",
+            "settings.debugLog": "Режим отладки",
+            "settings.showLog": "Показать файл лога",
+            "settings.sendLog": "Отправить лог",
+            "settings.hotkey": "⌥ Alt (тап) — конвертировать последнее слово\nРаботает на выделенном тексте\nПовторный Alt — обратная конвертация",
+            "settings.language": "Язык интерфейса:",
+            "settings.languageAuto": "Системный",
+
+            "update.available": "Доступно обновление",
+            "update.newVersion": "Новая версия:",
+            "update.download": "Скачать",
+            "update.skip": "Пропустить",
+            "update.later": "Позже",
+            "update.upToDate": "Актуальная версия",
+            "update.latestInstalled": "У вас установлена последняя версия.",
+            "update.checkFailed": "Ошибка проверки",
+            "update.checkFailedDetail": "Не удалось подключиться к серверу обновлений.",
+        ],
+
+        // ========== DEUTSCH ==========
+        "de": [
+            "menu.autoSwitch": "Auto-Umschaltung",
+            "menu.checkPermissions": "Berechtigungen prüfen…",
+            "menu.settings": "Einstellungen…",
+            "menu.checkUpdates": "Nach Updates suchen…",
+            "menu.donate": "Entwicklung unterstützen ❤️",
+            "menu.quit": "Beenden",
+            "wizard.accessibility.title": "Schritt 1 von 2: Bedienungshilfen",
+            "wizard.accessibility.text": "RuSwitcher benötigt die Berechtigung für Bedienungshilfen.\n\nDie Einstellungen werden geöffnet — fügen Sie RuSwitcher hinzu.",
+            "wizard.inputMonitoring.title": "Schritt 2 von 2: Eingabeüberwachung",
+            "wizard.inputMonitoring.text": "Jetzt wird die Berechtigung für Eingabeüberwachung benötigt.\n\n⚠️ macOS erfordert einen Neustart der App.",
+            "wizard.openSettings": "Einstellungen öffnen",
+            "wizard.later": "Später",
+            "settings.title": "RuSwitcher — Einstellungen",
+            "settings.tab.general": "Allgemein",
+            "settings.tab.about": "Über",
+            "settings.tab.advanced": "Erweitert",
+            "settings.autoSwitch": "Layout automatisch umschalten",
+            "settings.launchAtLogin": "Beim Anmelden starten",
+            "settings.layout1": "Layout 1:",
+            "settings.layout2": "Layout 2:",
+            "settings.autoDetect": "Automatisch",
+            "settings.version": "Leichte Alternative zu PuntoSwitcher",
+            "settings.donate": "Entwicklung unterstützen ❤️",
+            "settings.contact": "Entwickler kontaktieren",
+            "settings.debugLog": "Debug-Protokollierung",
+            "settings.showLog": "Protokolldatei anzeigen",
+            "settings.sendLog": "Protokoll senden",
+            "settings.hotkey": "⌥ Alt (Tipp) — letztes Wort konvertieren\nFunktioniert auch mit markiertem Text\nDoppeltes Alt — Rückkonvertierung",
+            "settings.language": "Sprache der Oberfläche:",
+            "settings.languageAuto": "Systemstandard",
+            "update.available": "Update verfügbar",
+            "update.newVersion": "Neue Version:",
+            "update.download": "Herunterladen",
+            "update.skip": "Überspringen",
+            "update.later": "Später",
+            "update.upToDate": "Aktuell",
+            "update.latestInstalled": "Sie haben die neueste Version installiert.",
+            "update.checkFailed": "Update-Prüfung fehlgeschlagen",
+            "update.checkFailedDetail": "Verbindung zum Update-Server nicht möglich.",
+        ],
+
+        // ========== FRANÇAIS ==========
+        "fr": [
+            "menu.autoSwitch": "Basculement auto",
+            "menu.checkPermissions": "Vérifier les autorisations…",
+            "menu.settings": "Préférences…",
+            "menu.checkUpdates": "Rechercher les mises à jour…",
+            "menu.donate": "Soutenir le développement ❤️",
+            "menu.quit": "Quitter",
+            "wizard.accessibility.title": "Étape 1 sur 2 : Accessibilité",
+            "wizard.accessibility.text": "RuSwitcher a besoin de l'autorisation Accessibilité.\n\nLes réglages vont s'ouvrir — ajoutez RuSwitcher.",
+            "wizard.inputMonitoring.title": "Étape 2 sur 2 : Surveillance de l'entrée",
+            "wizard.inputMonitoring.text": "L'autorisation de surveillance de l'entrée est maintenant nécessaire.\n\n⚠️ macOS demandera un redémarrage de l'app.",
+            "wizard.openSettings": "Ouvrir les réglages",
+            "wizard.later": "Plus tard",
+            "settings.title": "RuSwitcher — Préférences",
+            "settings.tab.general": "Général",
+            "settings.tab.about": "À propos",
+            "settings.tab.advanced": "Avancé",
+            "settings.autoSwitch": "Basculer automatiquement la disposition",
+            "settings.launchAtLogin": "Lancer au démarrage",
+            "settings.layout1": "Disposition 1 :",
+            "settings.layout2": "Disposition 2 :",
+            "settings.autoDetect": "Détection auto",
+            "settings.version": "Alternative légère à PuntoSwitcher",
+            "settings.donate": "Soutenir le développement ❤️",
+            "settings.contact": "Contacter le développeur",
+            "settings.debugLog": "Journal de débogage",
+            "settings.showLog": "Afficher le journal",
+            "settings.sendLog": "Envoyer le journal",
+            "settings.hotkey": "⌥ Alt (tap) — convertir le dernier mot\nFonctionne aussi sur le texte sélectionné\nDouble Alt — conversion inverse",
+            "settings.language": "Langue de l'interface :",
+            "settings.languageAuto": "Système par défaut",
+            "update.available": "Mise à jour disponible",
+            "update.newVersion": "Nouvelle version :",
+            "update.download": "Télécharger",
+            "update.skip": "Ignorer",
+            "update.later": "Plus tard",
+            "update.upToDate": "À jour",
+            "update.latestInstalled": "Vous avez la dernière version installée.",
+            "update.checkFailed": "Échec de la vérification",
+            "update.checkFailedDetail": "Impossible de se connecter au serveur de mise à jour.",
+        ],
+
+        // ========== ESPAÑOL ==========
+        "es": [
+            "menu.autoSwitch": "Cambio automático",
+            "menu.checkPermissions": "Verificar permisos…",
+            "menu.settings": "Ajustes…",
+            "menu.checkUpdates": "Buscar actualizaciones…",
+            "menu.donate": "Apoyar el desarrollo ❤️",
+            "menu.quit": "Salir",
+            "wizard.accessibility.title": "Paso 1 de 2: Accesibilidad",
+            "wizard.accessibility.text": "RuSwitcher necesita permiso de Accesibilidad.\n\nSe abrirán los ajustes — añada RuSwitcher.",
+            "wizard.inputMonitoring.title": "Paso 2 de 2: Monitoreo de entrada",
+            "wizard.inputMonitoring.text": "Ahora se necesita el permiso de monitoreo de entrada.\n\n⚠️ macOS requerirá reiniciar la app.",
+            "wizard.openSettings": "Abrir ajustes",
+            "wizard.later": "Más tarde",
+            "settings.title": "RuSwitcher — Ajustes",
+            "settings.tab.general": "General",
+            "settings.tab.about": "Acerca de",
+            "settings.tab.advanced": "Avanzado",
+            "settings.autoSwitch": "Cambiar disposición automáticamente",
+            "settings.launchAtLogin": "Iniciar al arrancar",
+            "settings.layout1": "Disposición 1:",
+            "settings.layout2": "Disposición 2:",
+            "settings.autoDetect": "Detección automática",
+            "settings.version": "Alternativa ligera a PuntoSwitcher",
+            "settings.donate": "Apoyar el desarrollo ❤️",
+            "settings.contact": "Contactar al desarrollador",
+            "settings.debugLog": "Registro de depuración",
+            "settings.showLog": "Mostrar archivo de registro",
+            "settings.sendLog": "Enviar registro",
+            "settings.hotkey": "⌥ Alt (toque) — convertir última palabra\nFunciona con texto seleccionado\nDoble Alt — conversión inversa",
+            "settings.language": "Idioma de la interfaz:",
+            "settings.languageAuto": "Predeterminado del sistema",
+            "update.available": "Actualización disponible",
+            "update.newVersion": "Nueva versión:",
+            "update.download": "Descargar",
+            "update.skip": "Omitir",
+            "update.later": "Más tarde",
+            "update.upToDate": "Actualizado",
+            "update.latestInstalled": "Tiene instalada la última versión.",
+            "update.checkFailed": "Error de verificación",
+            "update.checkFailedDetail": "No se pudo conectar al servidor de actualizaciones.",
+        ],
+
+        // ========== PORTUGUÊS ==========
+        "pt": [
+            "menu.autoSwitch": "Troca automática",
+            "menu.checkPermissions": "Verificar permissões…",
+            "menu.settings": "Configurações…",
+            "menu.checkUpdates": "Verificar atualizações…",
+            "menu.donate": "Apoiar o desenvolvimento ❤️",
+            "menu.quit": "Sair",
+            "wizard.openSettings": "Abrir configurações",
+            "wizard.later": "Mais tarde",
+            "settings.title": "RuSwitcher — Configurações",
+            "settings.tab.general": "Geral",
+            "settings.tab.about": "Sobre",
+            "settings.tab.advanced": "Avançado",
+            "settings.autoSwitch": "Trocar layout automaticamente",
+            "settings.launchAtLogin": "Iniciar no login",
+            "settings.autoDetect": "Detecção automática",
+            "settings.donate": "Apoiar o desenvolvimento ❤️",
+            "settings.contact": "Contatar o desenvolvedor",
+            "settings.language": "Idioma da interface:",
+            "settings.languageAuto": "Padrão do sistema",
+            "update.download": "Baixar",
+            "update.skip": "Pular",
+            "update.later": "Mais tarde",
+        ],
+
+        // ========== 中文 ==========
+        "zh": [
+            "menu.autoSwitch": "自动切换",
+            "menu.checkPermissions": "检查权限…",
+            "menu.settings": "设置…",
+            "menu.checkUpdates": "检查更新…",
+            "menu.donate": "支持开发 ❤️",
+            "menu.quit": "退出",
+            "wizard.openSettings": "打开设置",
+            "wizard.later": "稍后",
+            "settings.title": "RuSwitcher — 设置",
+            "settings.tab.general": "通用",
+            "settings.tab.about": "关于",
+            "settings.tab.advanced": "高级",
+            "settings.autoSwitch": "自动切换布局",
+            "settings.launchAtLogin": "登录时启动",
+            "settings.autoDetect": "自动检测",
+            "settings.donate": "支持开发 ❤️",
+            "settings.contact": "联系开发者",
+            "settings.language": "界面语言：",
+            "settings.languageAuto": "跟随系统",
+            "update.download": "下载",
+            "update.skip": "跳过",
+            "update.later": "稍后",
+        ],
+
+        // ========== 日本語 ==========
+        "ja": [
+            "menu.autoSwitch": "自動切替",
+            "menu.checkPermissions": "権限を確認…",
+            "menu.settings": "設定…",
+            "menu.checkUpdates": "アップデートを確認…",
+            "menu.donate": "開発を支援 ❤️",
+            "menu.quit": "終了",
+            "wizard.openSettings": "設定を開く",
+            "wizard.later": "後で",
+            "settings.title": "RuSwitcher — 設定",
+            "settings.tab.general": "一般",
+            "settings.tab.about": "このアプリについて",
+            "settings.tab.advanced": "詳細",
+            "settings.autoSwitch": "レイアウトの自動切替",
+            "settings.launchAtLogin": "ログイン時に起動",
+            "settings.autoDetect": "自動検出",
+            "settings.donate": "開発を支援 ❤️",
+            "settings.contact": "開発者に連絡",
+            "settings.language": "インターフェース言語：",
+            "settings.languageAuto": "システムデフォルト",
+            "update.download": "ダウンロード",
+            "update.skip": "スキップ",
+            "update.later": "後で",
+        ],
+
+        // ========== 한국어 ==========
+        "ko": [
+            "menu.autoSwitch": "자동 전환",
+            "menu.checkPermissions": "권한 확인…",
+            "menu.settings": "설정…",
+            "menu.checkUpdates": "업데이트 확인…",
+            "menu.donate": "개발 지원 ❤️",
+            "menu.quit": "종료",
+            "wizard.openSettings": "설정 열기",
+            "wizard.later": "나중에",
+            "settings.title": "RuSwitcher — 설정",
+            "settings.tab.general": "일반",
+            "settings.tab.about": "정보",
+            "settings.tab.advanced": "고급",
+            "settings.autoSwitch": "자동 레이아웃 전환",
+            "settings.launchAtLogin": "로그인 시 실행",
+            "settings.autoDetect": "자동 감지",
+            "settings.donate": "개발 지원 ❤️",
+            "settings.contact": "개발자 연락",
+            "settings.language": "인터페이스 언어:",
+            "settings.languageAuto": "시스템 기본값",
+            "update.download": "다운로드",
+            "update.skip": "건너뛰기",
+            "update.later": "나중에",
+        ],
+
+        // ========== УКРАЇНСЬКА ==========
+        "uk": [
+            "menu.autoSwitch": "Автоперемикання",
+            "menu.checkPermissions": "Перевірити дозволи…",
+            "menu.settings": "Налаштування…",
+            "menu.checkUpdates": "Перевірити оновлення…",
+            "menu.donate": "Підтримати розробку ❤️",
+            "menu.quit": "Вихід",
+
+            "wizard.permissionsReset.title": "Дозволи скинуті після оновлення",
+            "wizard.permissionsReset.text": "macOS скинув дозволи через оновлення програми.\n\nRuSwitcher видалить старі записи і запросить дозволи знову.\nВам потрібно лише увімкнути перемикачі.",
+            "wizard.accessibility.title": "Крок 1 з 2: Доступність",
+            "wizard.accessibility.text": "RuSwitcher потребує дозвіл Accessibility.\n\nВідкриються налаштування — додайте RuSwitcher.\nПрограма визначить автоматично.",
+            "wizard.inputMonitoring.title": "Крок 2 з 2: Моніторинг введення",
+            "wizard.inputMonitoring.text": "Тепер потрібен дозвіл Input Monitoring.\n\n⚠️ macOS вимагатиме перезапуск програми.\nRuSwitcher перезапуститься автоматично.",
+            "wizard.openSettings": "Відкрити налаштування",
+            "wizard.later": "Пізніше",
+
+            "settings.title": "RuSwitcher — Налаштування",
+            "settings.tab.general": "Загальні",
+            "settings.tab.about": "Про програму",
+            "settings.tab.advanced": "Додатково",
+            "settings.autoSwitch": "Автоматично перемикати розкладку",
+            "settings.launchAtLogin": "Запускати при вході",
+            "settings.layout1": "Розкладка 1:",
+            "settings.layout2": "Розкладка 2:",
+            "settings.autoDetect": "Автовизначення",
+            "settings.version": "Легка альтернатива PuntoSwitcher",
+            "settings.donate": "Підтримати розробку ❤️",
+            "settings.contact": "Зв'язатися з розробником",
+            "settings.debugLog": "Режим налагодження",
+            "settings.showLog": "Показати файл логу",
+            "settings.sendLog": "Надіслати лог",
+            "settings.hotkey": "⌥ Alt (тап) — конвертувати останнє слово\nПрацює на виділеному тексті\nПовторний Alt — зворотна конвертація",
+            "settings.language": "Мова інтерфейсу:",
+            "settings.languageAuto": "Системна",
+
+            "update.available": "Доступне оновлення",
+            "update.newVersion": "Нова версія:",
+            "update.download": "Завантажити",
+            "update.skip": "Пропустити",
+            "update.later": "Пізніше",
+            "update.upToDate": "Актуальна версія",
+            "update.latestInstalled": "У вас встановлено останню версію.",
+            "update.checkFailed": "Помилка перевірки",
+            "update.checkFailedDetail": "Не вдалося з'єднатися з сервером оновлень.",
+        ],
+
+        // ========== БЕЛАРУСКАЯ ==========
+        "be": [
+            "menu.autoSwitch": "Аўтаперамыканне",
+            "menu.checkPermissions": "Праверыць дазволы…",
+            "menu.settings": "Налады…",
+            "menu.checkUpdates": "Праверыць абнаўленні…",
+            "menu.donate": "Падтрымаць распрацоўку ❤️",
+            "menu.quit": "Выхад",
+
+            "wizard.permissionsReset.title": "Дазволы скінуты пасля абнаўлення",
+            "wizard.permissionsReset.text": "macOS скінуў дазволы з-за абнаўлення праграмы.\n\nRuSwitcher выдаліць старыя запісы і запытае дазволы нанова.\nВам трэба толькі ўключыць пераключальнікі.",
+            "wizard.accessibility.title": "Крок 1 з 2: Даступнасць",
+            "wizard.accessibility.text": "RuSwitcher патрабуе дазвол Accessibility.\n\nАдкрыюцца налады — дадайце RuSwitcher.\nПраграма вызначыць аўтаматычна.",
+            "wizard.inputMonitoring.title": "Крок 2 з 2: Маніторынг уводу",
+            "wizard.inputMonitoring.text": "Цяпер патрэбен дазвол Input Monitoring.\n\n⚠️ macOS запатрабуе перазапуск праграмы.\nRuSwitcher перазапусціцца аўтаматычна.",
+            "wizard.openSettings": "Адкрыць налады",
+            "wizard.later": "Пазней",
+
+            "settings.title": "RuSwitcher — Налады",
+            "settings.tab.general": "Агульныя",
+            "settings.tab.about": "Пра праграму",
+            "settings.tab.advanced": "Дадаткова",
+            "settings.autoSwitch": "Аўтаматычна пераключаць раскладку",
+            "settings.launchAtLogin": "Запускаць пры ўваходзе",
+            "settings.layout1": "Раскладка 1:",
+            "settings.layout2": "Раскладка 2:",
+            "settings.autoDetect": "Аўтавызначэнне",
+            "settings.version": "Лёгкая альтэрнатыва PuntoSwitcher",
+            "settings.donate": "Падтрымаць распрацоўку ❤️",
+            "settings.contact": "Звязацца з распрацоўшчыкам",
+            "settings.debugLog": "Рэжым адладкі",
+            "settings.showLog": "Паказаць файл лога",
+            "settings.sendLog": "Адправіць лог",
+            "settings.hotkey": "⌥ Alt (тап) — канвертаваць апошняе слова\nПрацуе на вылучаным тэксце\nПаўторны Alt — зваротная канвертацыя",
+            "settings.language": "Мова інтэрфейсу:",
+            "settings.languageAuto": "Сістэмная",
+
+            "update.available": "Даступна абнаўленне",
+            "update.newVersion": "Новая версія:",
+            "update.download": "Спампаваць",
+            "update.skip": "Прапусціць",
+            "update.later": "Пазней",
+            "update.upToDate": "Актуальная версія",
+            "update.latestInstalled": "У вас усталявана апошняя версія.",
+            "update.checkFailed": "Памылка праверкі",
+            "update.checkFailedDetail": "Не ўдалося злучыцца з серверам абнаўленняў.",
+        ],
+
+        // ========== POLSKI ==========
+        "pl": [
+            "menu.autoSwitch": "Automatyczne przełączanie",
+            "menu.checkPermissions": "Sprawdź uprawnienia…",
+            "menu.settings": "Ustawienia…",
+            "menu.checkUpdates": "Sprawdź aktualizacje…",
+            "menu.donate": "Wesprzyj rozwój ❤️",
+            "menu.quit": "Zakończ",
+            "wizard.openSettings": "Otwórz ustawienia",
+            "wizard.later": "Później",
+            "settings.title": "RuSwitcher — Ustawienia",
+            "settings.tab.general": "Ogólne",
+            "settings.tab.about": "O programie",
+            "settings.tab.advanced": "Zaawansowane",
+            "settings.autoSwitch": "Automatycznie przełączaj układ",
+            "settings.launchAtLogin": "Uruchom przy logowaniu",
+            "settings.autoDetect": "Automatyczne wykrywanie",
+            "settings.donate": "Wesprzyj rozwój ❤️",
+            "settings.contact": "Skontaktuj się z deweloperem",
+            "settings.language": "Język interfejsu:",
+            "settings.languageAuto": "Domyślny systemowy",
+            "update.download": "Pobierz",
+            "update.skip": "Pomiń",
+            "update.later": "Później",
+        ],
+    ]
+}
