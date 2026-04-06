@@ -124,12 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissionCheckTimer?.invalidate()
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if AXIsProcessTrusted() {
-                rslog("Accessibility granted!")
-                self.permissionCheckTimer?.invalidate()
-                self.permissionCheckTimer = nil
-                self.showStep_InputMonitoring()
+            Task { @MainActor in
+                guard let self else { return }
+                if AXIsProcessTrusted() {
+                    rslog("Accessibility granted!")
+                    self.permissionCheckTimer?.invalidate()
+                    self.permissionCheckTimer = nil
+                    self.showStep_InputMonitoring()
+                }
             }
         }
     }
@@ -152,13 +154,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         permissionCheckTimer?.invalidate()
         permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            if CGPreflightListenEventAccess() {
-                rslog("Input Monitoring granted! Restarting...")
-                SettingsManager.shared.permissionsWereGranted = true
-                self.permissionCheckTimer?.invalidate()
-                self.permissionCheckTimer = nil
-                self.restartApp()
+            Task { @MainActor in
+                guard let self else { return }
+                if CGPreflightListenEventAccess() {
+                    rslog("Input Monitoring granted! Restarting...")
+                    SettingsManager.shared.permissionsWereGranted = true
+                    self.permissionCheckTimer?.invalidate()
+                    self.permissionCheckTimer = nil
+                    self.restartApp()
+                }
             }
         }
     }
@@ -279,6 +283,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(quitItem)
 
         statusItem.menu = menu
+        rslog("Menu created with \(menu.items.count) items")
     }
 
     func updateStatusIcon() {

@@ -2,7 +2,7 @@
 set -e
 
 APP_NAME="RuSwitcher"
-VERSION="2.0.0"
+VERSION="2.0.1"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 DMG_TEMP="${APP_NAME}-temp.dmg"
 VOL_NAME="${APP_NAME}"
