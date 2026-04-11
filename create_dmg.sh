@@ -4,6 +4,9 @@ set -e
 APP_NAME="RuSwitcher"
 VERSION="2.0.2"
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
+# Keychain profile used for Apple notarization. Override with NOTARIZE_PROFILE=<name>.
+# Skip notarization entirely with SKIP_NOTARIZE=1.
+NOTARIZE_PROFILE="${NOTARIZE_PROFILE:-notarytool-studio}"
 DMG_TEMP="${APP_NAME}-temp.dmg"
 VOL_NAME="${APP_NAME}"
 BACKGROUND="dmg_background.png"
@@ -84,6 +87,22 @@ echo "→ Compressing..."
 hdiutil convert "$DMG_TEMP" -format UDZO -imagekey zlib-level=9 -o "$DMG_NAME"
 rm -f "$DMG_TEMP"
 
+# 10. Notarize with Apple (required for Gatekeeper to accept the DMG on end-user Macs).
+# Signed-but-unnotarized DMGs trigger "Apple could not verify [app] is free of malware".
+if [ "${SKIP_NOTARIZE:-0}" = "1" ]; then
+    echo "→ SKIP_NOTARIZE=1 — skipping notarization (DMG will NOT pass Gatekeeper on other Macs)"
+else
+    echo "→ Submitting to Apple notary service (profile: $NOTARIZE_PROFILE)..."
+    xcrun notarytool submit "$DMG_NAME" \
+        --keychain-profile "$NOTARIZE_PROFILE" \
+        --wait
+
+    echo "→ Stapling notarization ticket..."
+    xcrun stapler staple "$DMG_NAME"
+    xcrun stapler validate "$DMG_NAME"
+fi
+
 echo ""
 echo "=== Done! ==="
 echo "DMG: $(pwd)/$DMG_NAME ($(du -h "$DMG_NAME" | cut -f1))"
+echo "SHA256: $(shasum -a 256 "$DMG_NAME" | awk '{print $1}')"
