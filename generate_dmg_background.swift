@@ -123,7 +123,7 @@ let verAttrs: [NSAttributedString.Key: Any] = [
     .font: NSFont.systemFont(ofSize: 10, weight: .regular),
     .foregroundColor: NSColor(calibratedRed: 0.4, green: 0.42, blue: 0.5, alpha: 0.6),
 ]
-let verText = "v2.0.0  •  MIT License  •  github.com/rashn/RuSwitcher" as NSString
+let verText = "v2.0.2  •  MIT License  •  github.com/rashn/RuSwitcher" as NSString
 let verSize = verText.size(withAttributes: verAttrs)
 verText.draw(at: NSPoint(x: (width - verSize.width) / 2, y: 15), withAttributes: verAttrs)
 

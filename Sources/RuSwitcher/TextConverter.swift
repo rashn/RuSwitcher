@@ -6,9 +6,8 @@ import CoreGraphics
 @MainActor
 final class TextConverter {
     private var lastConvertedCount = 0
-    private var lastWasSelection = false
     private var lastBoundaryCount = 0
-    private var savedClipboard: String?
+    private var savedClipboardItems: [NSPasteboardItem]?
     private var clipboardRestoreWork: DispatchWorkItem?
     private var isConverting = false
 
@@ -74,16 +73,17 @@ final class TextConverter {
         }
         let pasteboard = NSPasteboard.general
         cancelClipboardRestore()
-        savedClipboard = pasteboard.string(forType: .string)
+        savedClipboardItems = snapshotPasteboard(pasteboard)
 
         // --- Попытка 1: уже есть выделенный текст? ---
         if let text = tryCopy(pasteboard) {
             rslog("convert: selection text='\(text)'")
             let converted = DynamicKeyMapping.convert(text)
             pasteText(converted, pasteboard: pasteboard)
-            selectBack(converted.count)
+            // Курсор остаётся в конце вставленного текста — не пере-выделяем,
+            // чтобы следующий ввод не затёр результат. Для reconvert используется
+            // унифицированный путь через selectBack(lastConvertedCount).
             lastConvertedCount = converted.count
-            lastWasSelection = true
             lastBoundaryCount = 0
             scheduleClipboardRestore()
             return true
@@ -132,7 +132,6 @@ final class TextConverter {
         }
 
         lastConvertedCount = converted.count
-        lastWasSelection = false
         lastBoundaryCount = usedBoundary
         scheduleClipboardRestore()
         return true
@@ -147,65 +146,48 @@ final class TextConverter {
         isConverting = true
         defer { isConverting = false }
 
-        rslog("reconvert: lastCount=\(lastConvertedCount) wasSelection=\(lastWasSelection)")
+        rslog("reconvert: lastCount=\(lastConvertedCount) boundary=\(lastBoundaryCount)")
         guard lastConvertedCount > 0 else { return false }
 
         let pasteboard = NSPasteboard.general
         // Отменяем отложенное восстановление clipboard — мы ещё работаем
         cancelClipboardRestore()
 
-        if lastWasSelection {
-            guard let text = tryCopy(pasteboard) else {
-                rslog("reconvert: selection copy failed")
-                scheduleClipboardRestore()
-                return false
-            }
-
-            rslog("reconvert: selection '\(text)'")
-            let converted = DynamicKeyMapping.convert(text)
-            pasteText(converted, pasteboard: pasteboard)
-            selectBack(converted.count)
-            lastConvertedCount = converted.count
-            scheduleClipboardRestore()
-            return true
-        } else {
-            for _ in 0..<lastBoundaryCount {
-                simKey(keyCode: 123, flags: [])
-                usleep(3_000)
-            }
-
-            selectBack(lastConvertedCount)
-            usleep(80_000)  // увеличил с 50 до 80мс — дать приложению обработать выделение
-
-            guard let text = tryCopy(pasteboard) else {
-                rslog("reconvert: copy failed, count=\(lastConvertedCount)")
-                simKey(keyCode: 124, flags: [])
-                for _ in 0..<lastBoundaryCount {
-                    simKey(keyCode: 124, flags: [])
-                    usleep(3_000)
-                }
-                scheduleClipboardRestore()
-                return false
-            }
-
-            rslog("reconvert: '\(text)' → converting")
-            let converted = DynamicKeyMapping.convert(text)
-            pasteText(converted, pasteboard: pasteboard)
-
-            for _ in 0..<lastBoundaryCount {
-                simKey(keyCode: 124, flags: [])
-                usleep(3_000)
-            }
-
-            lastConvertedCount = converted.count
-            scheduleClipboardRestore()
-            return true
+        for _ in 0..<lastBoundaryCount {
+            simKey(keyCode: 123, flags: [])
+            usleep(3_000)
         }
+
+        selectBack(lastConvertedCount)
+        usleep(80_000)  // дать приложению обработать выделение
+
+        guard let text = tryCopy(pasteboard) else {
+            rslog("reconvert: copy failed, count=\(lastConvertedCount)")
+            simKey(keyCode: 124, flags: [])
+            for _ in 0..<lastBoundaryCount {
+                simKey(keyCode: 124, flags: [])
+                usleep(3_000)
+            }
+            scheduleClipboardRestore()
+            return false
+        }
+
+        rslog("reconvert: '\(text)' → converting")
+        let converted = DynamicKeyMapping.convert(text)
+        pasteText(converted, pasteboard: pasteboard)
+
+        for _ in 0..<lastBoundaryCount {
+            simKey(keyCode: 124, flags: [])
+            usleep(3_000)
+        }
+
+        lastConvertedCount = converted.count
+        scheduleClipboardRestore()
+        return true
     }
 
     func clearState() {
         lastConvertedCount = 0
-        lastWasSelection = false
         lastBoundaryCount = 0
     }
 
@@ -229,18 +211,35 @@ final class TextConverter {
     /// (если за это время придёт reconvert — отменится и перепланируется)
     private func scheduleClipboardRestore() {
         cancelClipboardRestore()
-        let saved = self.savedClipboard
+        let saved = self.savedClipboardItems
         let work = DispatchWorkItem { [weak self] in
             let pasteboard = NSPasteboard.general
             pasteboard.clearContents()
-            if let saved {
-                pasteboard.setString(saved, forType: .string)
+            if let saved, !saved.isEmpty {
+                pasteboard.writeObjects(saved)
             }
-            self?.savedClipboard = nil
-            rslog("clipboard restored")
+            self?.savedClipboardItems = nil
+            rslog("clipboard restored (\(saved?.count ?? 0) items)")
         }
         clipboardRestoreWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+    }
+
+    /// Делает глубокую копию всех pasteboard items (со всеми типами данных).
+    /// Это нужно потому, что NSPasteboardItem становится невалидным после
+    /// pasteboard.clearContents() — поэтому копируем data по каждому типу
+    /// в новые NSPasteboardItem.
+    private func snapshotPasteboard(_ pb: NSPasteboard) -> [NSPasteboardItem] {
+        guard let items = pb.pasteboardItems else { return [] }
+        return items.map { oldItem in
+            let newItem = NSPasteboardItem()
+            for type in oldItem.types {
+                if let data = oldItem.data(forType: type) {
+                    newItem.setData(data, forType: type)
+                }
+            }
+            return newItem
+        }
     }
 
     /// Копирует выделенный текст. Делает до 3 попыток (Cmd+C не всегда срабатывает с первого раза)
