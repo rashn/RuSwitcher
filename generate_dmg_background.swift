@@ -5,6 +5,18 @@ import CoreGraphics
 let width: CGFloat = 660
 let height: CGFloat = 400
 
+// Версия читается из version.json (единый источник правды)
+func readVersion() -> String {
+    let path = FileManager.default.currentDirectoryPath + "/version.json"
+    guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)),
+          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let v = json["version"] as? String else {
+        return "?"
+    }
+    return v
+}
+let appVersion = readVersion()
+
 // Create bitmap context
 let rep = NSBitmapImageRep(
     bitmapDataPlanes: nil,
@@ -123,7 +135,7 @@ let verAttrs: [NSAttributedString.Key: Any] = [
     .font: NSFont.systemFont(ofSize: 10, weight: .regular),
     .foregroundColor: NSColor(calibratedRed: 0.4, green: 0.42, blue: 0.5, alpha: 0.6),
 ]
-let verText = "v2.0.2  •  MIT License  •  github.com/rashn/RuSwitcher" as NSString
+let verText = "v\(appVersion)  •  MIT License  •  github.com/rashn/RuSwitcher" as NSString
 let verSize = verText.size(withAttributes: verAttrs)
 verText.draw(at: NSPoint(x: (width - verSize.width) / 2, y: 15), withAttributes: verAttrs)
 

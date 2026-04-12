@@ -1,4 +1,6 @@
 {
-  "version": "2.0.2",
-  "url": "https://github.com/rashn/RuSwitcher/releases/latest"
+  "version": "2.1.0",
+  "build": "6",
+  "url": "https://github.com/rashn/RuSwitcher/releases/latest",
+  "sha256": "54e7ec62e6808f29a91a9b7254096c4eff696d7d1005dd243244f818e8aaf462"
 }

@@ -7,6 +7,7 @@ final class SettingsWindowController {
     private var window: NSWindow?
     private var autoSwitchCheckbox: NSButton?
     private var launchAtLoginCheckbox: NSButton?
+    private var checkUpdatesCheckbox: NSButton?
     private var debugLogCheckbox: NSButton?
     private var layout1Popup: NSPopUpButton?
     private var layout2Popup: NSPopUpButton?
@@ -14,6 +15,7 @@ final class SettingsWindowController {
 
     /// Callback для обновления меню
     var onAutoSwitchChanged: ((Bool) -> Void)?
+    var onPerAppLayoutChanged: ((Bool) -> Void)?
 
     func showWindow() {
         if let window {
@@ -23,7 +25,7 @@ final class SettingsWindowController {
         }
 
         let win = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 360),
+            contentRect: NSRect(x: 0, y: 0, width: 480, height: 420),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -57,8 +59,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabGeneral
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 300))
-        var y: CGFloat = 260
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 360))
+        var y: CGFloat = 320
 
         // Автопереключение
         let autoSwitch = NSButton(checkboxWithTitle: L10n.settingsAutoSwitch, target: self, action: #selector(autoSwitchChanged))
@@ -74,7 +76,31 @@ final class SettingsWindowController {
         loginCheckbox.state = SettingsManager.shared.launchAtLogin ? .on : .off
         view.addSubview(loginCheckbox)
         launchAtLoginCheckbox = loginCheckbox
-        y -= 35
+        y -= 30
+
+        // Запоминание раскладки по приложению
+        let perAppCheckbox = NSButton(checkboxWithTitle: L10n.settingsPerAppLayout, target: self, action: #selector(perAppLayoutChanged))
+        perAppCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        perAppCheckbox.state = SettingsManager.shared.perAppLayout ? .on : .off
+        view.addSubview(perAppCheckbox)
+        y -= 30
+
+        // Авто-проверка обновлений
+        let updCheckbox = NSButton(checkboxWithTitle: L10n.settingsCheckUpdates,
+                                   target: self, action: #selector(checkUpdatesEnabledChanged))
+        updCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        updCheckbox.state = SettingsManager.shared.checkUpdatesEnabled ? .on : .off
+        updCheckbox.toolTip = L10n.settingsCheckUpdatesHint
+        view.addSubview(updCheckbox)
+        checkUpdatesCheckbox = updCheckbox
+        y -= 18
+
+        let updHint = NSTextField(wrappingLabelWithString: L10n.settingsCheckUpdatesHint)
+        updHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        updHint.font = .systemFont(ofSize: 11)
+        updHint.textColor = .secondaryLabelColor
+        view.addSubview(updHint)
+        y -= 40
 
         // Язык интерфейса
         let langLabel = NSTextField(labelWithString: L10n.settingsLanguage)
@@ -132,8 +158,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabAbout
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 300))
-        var y: CGFloat = 250
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 360))
+        var y: CGFloat = 310
 
         // Название и версия
         let titleLabel = NSTextField(labelWithString: "RuSwitcher")
@@ -186,8 +212,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabAdvanced
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 300))
-        var y: CGFloat = 250
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 360))
+        var y: CGFloat = 310
 
         // Debug log
         let debugCheckbox = NSButton(checkboxWithTitle: L10n.settingsDebugLog, target: self, action: #selector(debugLogChanged))
@@ -292,6 +318,10 @@ final class SettingsWindowController {
         SettingsManager.shared.launchAtLogin = sender.state == .on
     }
 
+    @objc private func checkUpdatesEnabledChanged(_ sender: NSButton) {
+        SettingsManager.shared.checkUpdatesEnabled = sender.state == .on
+    }
+
     @objc private func languageChanged(_ sender: NSPopUpButton) {
         let langCode = (sender.selectedItem?.representedObject as? String) ?? ""
         SettingsManager.shared.interfaceLanguage = langCode
@@ -309,6 +339,12 @@ final class SettingsWindowController {
     @objc private func layout2Changed(_ sender: NSPopUpButton) {
         SettingsManager.shared.layout2ID = selectedLayoutID(from: sender)
         DynamicKeyMapping.clearCache()
+    }
+
+    @objc private func perAppLayoutChanged(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        SettingsManager.shared.perAppLayout = enabled
+        onPerAppLayoutChanged?(enabled)
     }
 
     @objc private func debugLogChanged(_ sender: NSButton) {

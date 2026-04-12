@@ -118,13 +118,12 @@ final class KeyboardMonitor: @unchecked Sendable {
     // MARK: - Event Handling
 
     fileprivate func handleKeyDown(keyCode: UInt16, flags: CGEventFlags) {
-        // Alt не сбрасывает altPressedAlone (это делается только для НЕ-модификаторных клавиш)
         altPressedAlone = false
         keysTypedSinceConversion = true
 
-        // Cmd/Ctrl/Alt модификаторы — не считаем
-        let modifiers = flags.intersection([.maskCommand, .maskControl, .maskAlternate])
-        if !modifiers.isEmpty { return }
+        // Структурные клавиши обрабатываем ВСЕГДА, даже если в flags остался
+        // «грязный» модификатор (stale .maskAlternate и т.п.) — иначе счётчик
+        // слова не сбрасывается и конвертация захватывает лишние символы.
 
         // Пробел (49) — единственная граница через которую можно вернуться
         if keyCode == 49 {
@@ -138,7 +137,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             return
         }
 
-        // Enter (36), Tab (48) — полный сброс, через строку не ходим
+        // Enter (36), Tab (48) — полный сброс
         if keyCode == 36 || keyCode == 48 {
             fullReset()
             return
@@ -155,16 +154,17 @@ final class KeyboardMonitor: @unchecked Sendable {
             if currentWordLength > 0 {
                 currentWordLength -= 1
             } else {
-                // Удаляем за пределами текущего слова — неизвестное состояние
                 fullReset()
             }
             return
         }
 
-        // Клавиша из нашей таблицы маппинга — это "буква"
+        // Буквы считаем только без Cmd/Ctrl/Alt
+        let modifiers = flags.intersection([.maskCommand, .maskControl, .maskAlternate])
+        if !modifiers.isEmpty { return }
+
         if KeyMapping.keycodeToEN[keyCode] != nil {
             currentWordLength += 1
-            // Начали новое слово — предыдущее теряем
             wordBeforeBoundaryLength = 0
             boundaryCount = 0
         } else {

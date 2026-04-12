@@ -28,6 +28,15 @@ enum LayoutSwitcher {
         }
     }
 
+    /// Переключает на конкретную раскладку по точному ID
+    static func switchTo(layoutID: String) {
+        let sources = installedLayouts()
+        if let target = sources.first(where: { sourceID($0) == layoutID }) {
+            TISEnableInputSource(target)
+            TISSelectInputSource(target)
+        }
+    }
+
     /// Переключает на конкретную раскладку по подстроке ID
     static func switchTo(containing substring: String) {
         let sources = installedLayouts()

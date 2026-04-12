@@ -16,9 +16,11 @@ final class SettingsManager: @unchecked Sendable {
         static let skippedVersion = "com.ruswitcher.skippedVersion"
         static let lastUpdateCheck = "com.ruswitcher.lastUpdateCheck"
         static let launchAtLogin = "com.ruswitcher.launchAtLogin"
+        static let checkUpdatesEnabled = "com.ruswitcher.checkUpdatesEnabled"
         static let interfaceLanguage = "com.ruswitcher.interfaceLanguage"
         static let permissionsWereGranted = "com.ruswitcher.permissionsWereGranted"
         static let launchAtLoginAsked = "com.ruswitcher.launchAtLoginAsked"
+        static let perAppLayout = "com.ruswitcher.perAppLayout"
     }
 
     private init() {}
@@ -68,6 +70,13 @@ final class SettingsManager: @unchecked Sendable {
         }
     }
 
+    /// Авто-проверка обновлений при запуске (дефолт: включено).
+    /// На ручную проверку через меню не влияет.
+    var checkUpdatesEnabled: Bool {
+        get { defaults.object(forKey: Keys.checkUpdatesEnabled) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Keys.checkUpdatesEnabled) }
+    }
+
     /// Язык интерфейса (пустая строка = авто-определение по системе)
     var interfaceLanguage: String {
         get { defaults.string(forKey: Keys.interfaceLanguage) ?? "" }
@@ -86,6 +95,11 @@ final class SettingsManager: @unchecked Sendable {
     var launchAtLoginAsked: Bool {
         get { defaults.bool(forKey: Keys.launchAtLoginAsked) }
         set { defaults.set(newValue, forKey: Keys.launchAtLoginAsked) }
+    }
+
+    var perAppLayout: Bool {
+        get { defaults.bool(forKey: Keys.perAppLayout) }
+        set { defaults.set(newValue, forKey: Keys.perAppLayout) }
     }
 
     var donateURL: String { "https://boosty.to/ruswitcher" }

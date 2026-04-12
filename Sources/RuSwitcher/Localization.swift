@@ -31,6 +31,8 @@ enum L10n {
     static var settingsTabAdvanced: String { s("settings.tab.advanced") }
     static var settingsAutoSwitch: String { s("settings.autoSwitch") }
     static var settingsLaunchAtLogin: String { s("settings.launchAtLogin") }
+    static var settingsCheckUpdates: String { s("settings.checkUpdates") }
+    static var settingsCheckUpdatesHint: String { s("settings.checkUpdates.hint") }
     static var settingsLayout1: String { s("settings.layout1") }
     static var settingsLayout2: String { s("settings.layout2") }
     static var settingsAutoDetect: String { s("settings.autoDetect") }
@@ -46,16 +48,22 @@ enum L10n {
     static var settingsLanguage: String { s("settings.language") }
     static var settingsLanguageAuto: String { s("settings.languageAuto") }
 
+    static var settingsPerAppLayout: String { s("settings.perAppLayout") }
+
     // MARK: - Обновления
     static var updateAvailable: String { s("update.available") }
     static var updateNewVersion: String { s("update.newVersion") }
     static var updateDownload: String { s("update.download") }
+    static var updateInstallRestart: String { s("update.installRestart") }
     static var updateSkip: String { s("update.skip") }
     static var updateLater: String { s("update.later") }
     static var updateUpToDate: String { s("update.upToDate") }
     static var updateLatestInstalled: String { s("update.latestInstalled") }
     static var updateCheckFailed: String { s("update.checkFailed") }
     static var updateCheckFailedDetail: String { s("update.checkFailedDetail") }
+    static var updateInstallFailed: String { s("update.installFailed") }
+    static var updateVerifyFailed: String { s("update.verifyFailed") }
+    static var updateDownloadFailed: String { s("update.downloadFailed") }
 
     // MARK: - Language names (для выпадающего списка)
 
@@ -134,6 +142,8 @@ enum L10n {
             "settings.tab.advanced": "Advanced",
             "settings.autoSwitch": "Auto-switch layout",
             "settings.launchAtLogin": "Launch at login",
+            "settings.checkUpdates": "Check for updates automatically",
+            "settings.checkUpdates.hint": "Connects to GitHub on each launch to look for new versions.",
             "settings.layout1": "Layout 1:",
             "settings.layout2": "Layout 2:",
             "settings.autoDetect": "Auto-detect",
@@ -147,16 +157,21 @@ enum L10n {
             "settings.starOnGithub": "⭐ Star on GitHub — help the project grow!",
             "settings.language": "Interface language:",
             "settings.languageAuto": "System default",
+            "settings.perAppLayout": "Remember layout per application",
 
             "update.available": "Update Available",
             "update.newVersion": "New version:",
             "update.download": "Download",
+            "update.installRestart": "Install & Restart",
             "update.skip": "Skip",
             "update.later": "Later",
             "update.upToDate": "Up to Date",
             "update.latestInstalled": "You have the latest version installed.",
             "update.checkFailed": "Update Check Failed",
             "update.checkFailedDetail": "Could not connect to the update server. Please check your internet connection.",
+            "update.installFailed": "Installation Failed",
+            "update.verifyFailed": "Download verification failed. The file may be corrupted.",
+            "update.downloadFailed": "Could not download the update. Please check your internet connection.",
         ],
 
         // ========== РУССКИЙ ==========
@@ -188,6 +203,8 @@ enum L10n {
             "settings.tab.advanced": "Расширенные",
             "settings.autoSwitch": "Автопереключение раскладки",
             "settings.launchAtLogin": "Запускать при входе",
+            "settings.checkUpdates": "Автоматически проверять обновления",
+            "settings.checkUpdates.hint": "При каждом запуске приложение обращается к GitHub за информацией о новой версии.",
             "settings.layout1": "Раскладка 1:",
             "settings.layout2": "Раскладка 2:",
             "settings.autoDetect": "Автоопределение",
@@ -201,16 +218,21 @@ enum L10n {
             "settings.starOnGithub": "⭐ Поставить звезду на GitHub — помогите проекту!",
             "settings.language": "Язык интерфейса:",
             "settings.languageAuto": "Системный",
+            "settings.perAppLayout": "Запоминать раскладку для каждого приложения",
 
             "update.available": "Доступно обновление",
             "update.newVersion": "Новая версия:",
             "update.download": "Скачать",
+            "update.installRestart": "Установить и перезапустить",
             "update.skip": "Пропустить",
             "update.later": "Позже",
             "update.upToDate": "Актуальная версия",
             "update.latestInstalled": "У вас установлена последняя версия.",
             "update.checkFailed": "Ошибка проверки",
             "update.checkFailedDetail": "Не удалось подключиться к серверу обновлений.",
+            "update.installFailed": "Ошибка установки",
+            "update.verifyFailed": "Проверка загруженного файла не пройдена. Файл может быть повреждён.",
+            "update.downloadFailed": "Не удалось скачать обновление. Проверьте подключение к интернету.",
         ],
 
         // ========== DEUTSCH ==========
@@ -238,6 +260,8 @@ enum L10n {
             "settings.tab.advanced": "Erweitert",
             "settings.autoSwitch": "Layout automatisch umschalten",
             "settings.launchAtLogin": "Beim Anmelden starten",
+            "settings.checkUpdates": "Automatisch nach Updates suchen",
+            "settings.checkUpdates.hint": "Verbindet sich bei jedem Start mit GitHub, um nach neuen Versionen zu suchen.",
             "settings.layout1": "Layout 1:",
             "settings.layout2": "Layout 2:",
             "settings.autoDetect": "Automatisch",
@@ -251,17 +275,22 @@ enum L10n {
             "settings.starOnGithub": "⭐ Stern auf GitHub — helfen Sie dem Projekt!",
             "settings.language": "Sprache der Oberfläche:",
             "settings.languageAuto": "Systemstandard",
+            "settings.perAppLayout": "Layout pro Anwendung merken",
             "wizard.permissionsReset.title": "Berechtigungen nach Update zurückgesetzt",
             "wizard.permissionsReset.text": "macOS hat die Berechtigungen nach dem App-Update zurückgesetzt.\n\nRuSwitcher entfernt alte Einträge und fordert Berechtigungen erneut an.\nSie müssen nur die Schalter umlegen.",
             "update.available": "Update verfügbar",
             "update.newVersion": "Neue Version:",
             "update.download": "Herunterladen",
+            "update.installRestart": "Installieren & Neustarten",
             "update.skip": "Überspringen",
             "update.later": "Später",
             "update.upToDate": "Aktuell",
             "update.latestInstalled": "Sie haben die neueste Version installiert.",
             "update.checkFailed": "Update-Prüfung fehlgeschlagen",
             "update.checkFailedDetail": "Verbindung zum Update-Server nicht möglich.",
+            "update.installFailed": "Installation fehlgeschlagen",
+            "update.verifyFailed": "Download-Überprüfung fehlgeschlagen. Die Datei könnte beschädigt sein.",
+            "update.downloadFailed": "Update konnte nicht heruntergeladen werden.",
         ],
 
         // ========== FRANÇAIS ==========
@@ -289,6 +318,8 @@ enum L10n {
             "settings.tab.advanced": "Avancé",
             "settings.autoSwitch": "Basculer automatiquement la disposition",
             "settings.launchAtLogin": "Lancer au démarrage",
+            "settings.checkUpdates": "Vérifier les mises à jour automatiquement",
+            "settings.checkUpdates.hint": "Se connecte à GitHub à chaque lancement pour rechercher de nouvelles versions.",
             "settings.layout1": "Disposition 1 :",
             "settings.layout2": "Disposition 2 :",
             "settings.autoDetect": "Détection auto",
@@ -302,17 +333,22 @@ enum L10n {
             "settings.starOnGithub": "⭐ Étoile sur GitHub — aidez le projet !",
             "settings.language": "Langue de l'interface :",
             "settings.languageAuto": "Système par défaut",
+            "settings.perAppLayout": "Mémoriser la disposition par application",
             "wizard.permissionsReset.title": "Autorisations réinitialisées après mise à jour",
             "wizard.permissionsReset.text": "macOS a réinitialisé les autorisations suite à la mise à jour.\n\nRuSwitcher supprimera les anciennes entrées et redemandera les autorisations.\nVous n'avez qu'à activer les boutons.",
             "update.available": "Mise à jour disponible",
             "update.newVersion": "Nouvelle version :",
             "update.download": "Télécharger",
+            "update.installRestart": "Installer et redémarrer",
             "update.skip": "Ignorer",
             "update.later": "Plus tard",
             "update.upToDate": "À jour",
             "update.latestInstalled": "Vous avez la dernière version installée.",
             "update.checkFailed": "Échec de la vérification",
             "update.checkFailedDetail": "Impossible de se connecter au serveur de mise à jour.",
+            "update.installFailed": "Échec de l'installation",
+            "update.verifyFailed": "La vérification du téléchargement a échoué. Le fichier est peut-être corrompu.",
+            "update.downloadFailed": "Impossible de télécharger la mise à jour.",
         ],
 
         // ========== ESPAÑOL ==========
@@ -340,6 +376,8 @@ enum L10n {
             "settings.tab.advanced": "Avanzado",
             "settings.autoSwitch": "Cambiar disposición automáticamente",
             "settings.launchAtLogin": "Iniciar al arrancar",
+            "settings.checkUpdates": "Buscar actualizaciones automáticamente",
+            "settings.checkUpdates.hint": "Se conecta a GitHub en cada inicio para buscar nuevas versiones.",
             "settings.layout1": "Disposición 1:",
             "settings.layout2": "Disposición 2:",
             "settings.autoDetect": "Detección automática",
@@ -353,17 +391,22 @@ enum L10n {
             "settings.starOnGithub": "⭐ Estrella en GitHub — ¡ayuda al proyecto!",
             "settings.language": "Idioma de la interfaz:",
             "settings.languageAuto": "Predeterminado del sistema",
+            "settings.perAppLayout": "Recordar disposición por aplicación",
             "wizard.permissionsReset.title": "Permisos restablecidos tras actualización",
             "wizard.permissionsReset.text": "macOS ha restablecido los permisos tras la actualización.\n\nRuSwitcher eliminará las entradas antiguas y solicitará permisos de nuevo.\nSolo necesita activar los interruptores.",
             "update.available": "Actualización disponible",
             "update.newVersion": "Nueva versión:",
             "update.download": "Descargar",
+            "update.installRestart": "Instalar y reiniciar",
             "update.skip": "Omitir",
             "update.later": "Más tarde",
             "update.upToDate": "Actualizado",
             "update.latestInstalled": "Tiene instalada la última versión.",
             "update.checkFailed": "Error de verificación",
             "update.checkFailedDetail": "No se pudo conectar al servidor de actualizaciones.",
+            "update.installFailed": "Error de instalación",
+            "update.verifyFailed": "La verificación de la descarga falló. El archivo puede estar dañado.",
+            "update.downloadFailed": "No se pudo descargar la actualización.",
         ],
 
         // ========== PORTUGUÊS ==========
@@ -383,13 +426,17 @@ enum L10n {
             "settings.tab.advanced": "Avançado",
             "settings.autoSwitch": "Trocar layout automaticamente",
             "settings.launchAtLogin": "Iniciar no login",
+            "settings.checkUpdates": "Verificar atualizações automaticamente",
+            "settings.checkUpdates.hint": "Conecta-se ao GitHub a cada inicialização para procurar novas versões.",
             "settings.autoDetect": "Detecção automática",
             "settings.donate": "Apoiar o desenvolvimento ❤️",
             "settings.contact": "Contatar o desenvolvedor",
             "settings.starOnGithub": "⭐ Estrela no GitHub — ajude o projeto!",
             "settings.language": "Idioma da interface:",
             "settings.languageAuto": "Padrão do sistema",
+            "settings.perAppLayout": "Lembrar layout por aplicativo",
             "update.download": "Baixar",
+            "update.installRestart": "Instalar e reiniciar",
             "update.skip": "Pular",
             "update.later": "Mais tarde",
         ],
@@ -411,13 +458,17 @@ enum L10n {
             "settings.tab.advanced": "高级",
             "settings.autoSwitch": "自动切换布局",
             "settings.launchAtLogin": "登录时启动",
+            "settings.checkUpdates": "自动检查更新",
+            "settings.checkUpdates.hint": "每次启动时连接 GitHub 查找新版本。",
             "settings.autoDetect": "自动检测",
             "settings.donate": "支持开发 ❤️",
             "settings.contact": "联系开发者",
             "settings.starOnGithub": "⭐ 在 GitHub 上点星 — 帮助项目成长！",
             "settings.language": "界面语言：",
             "settings.languageAuto": "跟随系统",
+            "settings.perAppLayout": "按应用记住布局",
             "update.download": "下载",
+            "update.installRestart": "安装并重启",
             "update.skip": "跳过",
             "update.later": "稍后",
         ],
@@ -439,13 +490,17 @@ enum L10n {
             "settings.tab.advanced": "詳細",
             "settings.autoSwitch": "レイアウトの自動切替",
             "settings.launchAtLogin": "ログイン時に起動",
+            "settings.checkUpdates": "自動的にアップデートを確認",
+            "settings.checkUpdates.hint": "起動時に GitHub へ接続して新しいバージョンを確認します。",
             "settings.autoDetect": "自動検出",
             "settings.donate": "開発を支援 ❤️",
             "settings.contact": "開発者に連絡",
             "settings.starOnGithub": "⭐ GitHub でスター — プロジェクトを応援！",
             "settings.language": "インターフェース言語：",
             "settings.languageAuto": "システムデフォルト",
+            "settings.perAppLayout": "アプリごとにレイアウトを記憶",
             "update.download": "ダウンロード",
+            "update.installRestart": "インストールして再起動",
             "update.skip": "スキップ",
             "update.later": "後で",
         ],
@@ -467,13 +522,17 @@ enum L10n {
             "settings.tab.advanced": "고급",
             "settings.autoSwitch": "자동 레이아웃 전환",
             "settings.launchAtLogin": "로그인 시 실행",
+            "settings.checkUpdates": "자동으로 업데이트 확인",
+            "settings.checkUpdates.hint": "실행할 때마다 GitHub에 연결하여 새 버전을 확인합니다.",
             "settings.autoDetect": "자동 감지",
             "settings.donate": "개발 지원 ❤️",
             "settings.contact": "개발자 연락",
             "settings.starOnGithub": "⭐ GitHub에서 스타 — 프로젝트를 도와주세요!",
             "settings.language": "인터페이스 언어:",
             "settings.languageAuto": "시스템 기본값",
+            "settings.perAppLayout": "앱별 레이아웃 기억",
             "update.download": "다운로드",
+            "update.installRestart": "설치 후 재시작",
             "update.skip": "건너뛰기",
             "update.later": "나중에",
         ],
@@ -507,6 +566,8 @@ enum L10n {
             "settings.tab.advanced": "Додатково",
             "settings.autoSwitch": "Автоматично перемикати розкладку",
             "settings.launchAtLogin": "Запускати при вході",
+            "settings.checkUpdates": "Автоматично перевіряти оновлення",
+            "settings.checkUpdates.hint": "При кожному запуску застосунок звертається до GitHub за інформацією про нову версію.",
             "settings.layout1": "Розкладка 1:",
             "settings.layout2": "Розкладка 2:",
             "settings.autoDetect": "Автовизначення",
@@ -520,16 +581,21 @@ enum L10n {
             "settings.starOnGithub": "⭐ Зірка на GitHub — допоможіть проєкту!",
             "settings.language": "Мова інтерфейсу:",
             "settings.languageAuto": "Системна",
+            "settings.perAppLayout": "Запам'ятовувати розкладку для кожного застосунку",
 
             "update.available": "Доступне оновлення",
             "update.newVersion": "Нова версія:",
             "update.download": "Завантажити",
+            "update.installRestart": "Встановити та перезапустити",
             "update.skip": "Пропустити",
             "update.later": "Пізніше",
             "update.upToDate": "Актуальна версія",
             "update.latestInstalled": "У вас встановлено останню версію.",
             "update.checkFailed": "Помилка перевірки",
             "update.checkFailedDetail": "Не вдалося з'єднатися з сервером оновлень.",
+            "update.installFailed": "Помилка встановлення",
+            "update.verifyFailed": "Перевірка завантаженого файлу не пройдена. Файл може бути пошкоджений.",
+            "update.downloadFailed": "Не вдалося завантажити оновлення.",
         ],
 
         // ========== БЕЛАРУСКАЯ ==========
@@ -561,6 +627,8 @@ enum L10n {
             "settings.tab.advanced": "Дадаткова",
             "settings.autoSwitch": "Аўтаматычна пераключаць раскладку",
             "settings.launchAtLogin": "Запускаць пры ўваходзе",
+            "settings.checkUpdates": "Аўтаматычна правяраць абнаўленні",
+            "settings.checkUpdates.hint": "Пры кожным запуску праграма звяртаецца да GitHub па інфармацыю аб новай версіі.",
             "settings.layout1": "Раскладка 1:",
             "settings.layout2": "Раскладка 2:",
             "settings.autoDetect": "Аўтавызначэнне",
@@ -574,16 +642,21 @@ enum L10n {
             "settings.starOnGithub": "⭐ Зорка на GitHub — дапамажыце праекту!",
             "settings.language": "Мова інтэрфейсу:",
             "settings.languageAuto": "Сістэмная",
+            "settings.perAppLayout": "Запамінаць раскладку для кожнай праграмы",
 
             "update.available": "Даступна абнаўленне",
             "update.newVersion": "Новая версія:",
             "update.download": "Спампаваць",
+            "update.installRestart": "Усталяваць і перазапусціць",
             "update.skip": "Прапусціць",
             "update.later": "Пазней",
             "update.upToDate": "Актуальная версія",
             "update.latestInstalled": "У вас усталявана апошняя версія.",
             "update.checkFailed": "Памылка праверкі",
             "update.checkFailedDetail": "Не ўдалося злучыцца з серверам абнаўленняў.",
+            "update.installFailed": "Памылка ўсталявання",
+            "update.verifyFailed": "Праверка спампаванага файла не прайшла. Файл можа быць пашкоджаны.",
+            "update.downloadFailed": "Не ўдалося спампаваць абнаўленне.",
         ],
 
         // ========== POLSKI ==========
@@ -603,13 +676,17 @@ enum L10n {
             "settings.tab.advanced": "Zaawansowane",
             "settings.autoSwitch": "Automatycznie przełączaj układ",
             "settings.launchAtLogin": "Uruchom przy logowaniu",
+            "settings.checkUpdates": "Automatycznie sprawdzaj aktualizacje",
+            "settings.checkUpdates.hint": "Łączy się z GitHub przy każdym uruchomieniu, aby sprawdzić nowe wersje.",
             "settings.autoDetect": "Automatyczne wykrywanie",
             "settings.donate": "Wesprzyj rozwój ❤️",
             "settings.contact": "Skontaktuj się z deweloperem",
             "settings.starOnGithub": "⭐ Gwiazdka na GitHub — pomóż projektowi!",
             "settings.language": "Język interfejsu:",
             "settings.languageAuto": "Domyślny systemowy",
+            "settings.perAppLayout": "Zapamiętaj układ dla każdej aplikacji",
             "update.download": "Pobierz",
+            "update.installRestart": "Zainstaluj i uruchom ponownie",
             "update.skip": "Pomiń",
             "update.later": "Później",
         ],

@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let keyboardMonitor = KeyboardMonitor()
     private let textConverter = TextConverter()
     private let settingsController = SettingsWindowController()
+    private let perAppLayoutManager = PerAppLayoutManager()
     private var permissionCheckTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -24,6 +25,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 menuItem.state = enabled ? .on : .off
             }
         }
+        settingsController.onPerAppLayoutChanged = { [weak self] enabled in
+            guard let self else { return }
+            if enabled {
+                self.startPerAppLayout()
+            } else {
+                self.perAppLayoutManager.stop()
+            }
+        }
+    }
+
+    private func startPerAppLayout() {
+        perAppLayoutManager.onLayoutRestored = { [weak self] in
+            self?.keyboardMonitor.markConverted()
+            self?.textConverter.clearState()
+            self?.updateStatusIcon()
+        }
+        perAppLayoutManager.start()
     }
 
     // MARK: - Login Item Sync
@@ -214,6 +232,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateStatusIcon()
         rslog("Monitoring started successfully")
 
+        if SettingsManager.shared.perAppLayout {
+            startPerAppLayout()
+        }
+
         // Предлагаем автозагрузку при первом запуске
         offerLaunchAtLoginIfNeeded()
     }
@@ -326,6 +348,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func quit() {
+        perAppLayoutManager.stop()
         keyboardMonitor.stop()
         NSApplication.shared.terminate(nil)
     }
