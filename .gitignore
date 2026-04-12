@@ -9,3 +9,5 @@ DerivedData/
 *.app
 *.dmg
 *.zip
+.vscode/
+*.certSigningRequest

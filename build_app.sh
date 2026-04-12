@@ -5,8 +5,20 @@ PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="RuSwitcher"
 APP_BUNDLE="$PROJECT_DIR/$APP_NAME.app"
 BUILD_DIR="$PROJECT_DIR/.build/release"
+VERSION_JSON="$PROJECT_DIR/version.json"
 
-echo "=== Building $APP_NAME ==="
+# version.json — единый источник правды. Значения в Info.plist в репо
+# игнорируются: скрипт штампует CFBundleShortVersionString и CFBundleVersion
+# в копию Info.plist внутри собранного бандла.
+SHORT_VERSION=$(/usr/bin/python3 -c "import json,sys;print(json.load(open('$VERSION_JSON'))['version'])")
+BUILD_VERSION=$(/usr/bin/python3 -c "import json,sys;print(json.load(open('$VERSION_JSON')).get('build','1'))")
+
+if [ -z "$SHORT_VERSION" ]; then
+    echo "ERROR: could not read version from $VERSION_JSON"
+    exit 1
+fi
+
+echo "=== Building $APP_NAME v$SHORT_VERSION (build $BUILD_VERSION) ==="
 
 # 1. Собираем release
 echo "→ swift build --configuration release..."
@@ -22,8 +34,11 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 # 3. Копируем бинарник
 cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 
-# 4. Копируем Info.plist
+# 4. Копируем Info.plist и штампуем версию из version.json
 cp "$PROJECT_DIR/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $SHORT_VERSION" "$APP_BUNDLE/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_VERSION" "$APP_BUNDLE/Contents/Info.plist"
+echo "→ Stamped Info.plist: CFBundleShortVersionString=$SHORT_VERSION CFBundleVersion=$BUILD_VERSION"
 
 # 5. Копируем иконку
 cp "$PROJECT_DIR/RuSwitcher.icns" "$APP_BUNDLE/Contents/Resources/RuSwitcher.icns"

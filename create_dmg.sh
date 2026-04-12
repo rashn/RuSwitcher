@@ -2,7 +2,8 @@
 set -e
 
 APP_NAME="RuSwitcher"
-VERSION="2.0.2"
+# Единый источник версии — version.json в корне репозитория.
+VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('version.json'))['version'])")
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 # Keychain profile used for Apple notarization. Override with NOTARIZE_PROFILE=<name>.
 # Skip notarization entirely with SKIP_NOTARIZE=1.
