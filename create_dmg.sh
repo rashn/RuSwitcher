@@ -4,6 +4,7 @@ set -e
 APP_NAME="RuSwitcher"
 # Единый источник версии — version.json в корне репозитория.
 VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('version.json'))['version'])")
+BUILD_VERSION=$(/usr/bin/python3 -c "import json;print(json.load(open('version.json')).get('build','1'))")
 DMG_NAME="${APP_NAME}-${VERSION}.dmg"
 # Keychain profile used for Apple notarization. Override with NOTARIZE_PROFILE=<name>.
 # Skip notarization entirely with SKIP_NOTARIZE=1.
@@ -15,6 +16,28 @@ APP_PATH="${APP_NAME}.app"
 DMG_SIZE="10m"
 
 echo "=== Creating styled DMG ==="
+
+if [ ! -d "$APP_PATH" ]; then
+    echo "ERROR: $APP_PATH not found. Build the app first: ./build_app.sh"
+    exit 1
+fi
+
+APP_INFO_PLIST="$APP_PATH/Contents/Info.plist"
+if [ ! -f "$APP_INFO_PLIST" ]; then
+    echo "ERROR: $APP_INFO_PLIST not found"
+    exit 1
+fi
+
+APP_VERSION=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_INFO_PLIST" 2>/dev/null || true)
+APP_BUILD=$(/usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_INFO_PLIST" 2>/dev/null || true)
+
+if [ "$APP_VERSION" != "$VERSION" ] || [ "$APP_BUILD" != "$BUILD_VERSION" ]; then
+    echo "ERROR: App bundle version mismatch."
+    echo "  version.json expects: $VERSION (build $BUILD_VERSION)"
+    echo "  $APP_PATH contains:   ${APP_VERSION:-?} (build ${APP_BUILD:-?})"
+    echo "Rebuild app before packaging: ./build_app.sh"
+    exit 1
+fi
 
 # Clean up
 rm -f "$DMG_NAME" "$DMG_TEMP"
