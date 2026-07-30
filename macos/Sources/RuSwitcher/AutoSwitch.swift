@@ -93,7 +93,23 @@ enum LayoutDetector {
         // Словарь — без учёта регистра (Caps Lock не должен мешать определению слова).
         guard Dict.isAvailable(oth) else { return .undecided }
         guard Dict.isValidWord(converted.lowercased(), lang: oth) else { return .keep }
-        if Dict.isAvailable(cur), Dict.isValidWord(typed.lowercased(), lang: cur) {
+        // Словарю текущего языка отдаём ТОЛЬКО целиком буквенный образ. NSSpellChecker
+        // токенизирует строку по пунктуации, а одиночную латинскую букву считает словом
+        // (проверено: все 26 из 26). Поэтому «люблю», набранное в EN как "k.,k.",
+        // читается им как «k» + «k» — «правильный английский», и гейт возвращал .keep.
+        // Тот же эффект у «объём» → "j,]`v" («j» + «v»).
+        //
+        // До правки вето выше такие строки до словаря не доходили вовсе. Сняли вето —
+        // надо закрыть и это. Оговорка не новая: в ивритской ветке выше она уже стоит
+        // ровно по этой причине («converted.allSatisfy { $0.isLetter }»).
+        //
+        // Пропуск гейта роняет в .switchToConverted, и это безопасно: сюда мы попадаем
+        // только когда конверсия УЖЕ признана словом другого языка (строка выше).
+        // «Слово другого языка + набранное из одиночных букв» — это набор не в той
+        // раскладке, а не осмысленный текст текущей.
+        if Dict.isAvailable(cur), typed.allSatisfy({ $0.isLetter }),
+            Dict.isValidWord(typed.lowercased(), lang: cur)
+        {
             return .keep
         }
         return .switchToConverted
