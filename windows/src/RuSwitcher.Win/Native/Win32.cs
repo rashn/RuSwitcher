@@ -17,6 +17,8 @@ internal static class Win32
     public const int WM_LBUTTONDOWN = 0x0201;
     public const int WM_RBUTTONDOWN = 0x0204;
     public const int WM_MBUTTONDOWN = 0x0207;
+    public const uint WM_COPY = 0x0301;
+    public const uint SMTO_ABORTIFHUNG = 0x0002;
 
     // Marker written into the dwExtraInfo of our own injected events, so the hook can
     // ignore them (the Windows counterpart of the macOS kRuSwitcherEventMarker userData).
@@ -76,6 +78,34 @@ internal static class Win32
 
     [DllImport("user32.dll")]
     public static extern void PostQuitMessage(int nExitCode);
+
+    [DllImport("user32.dll")]
+    public static extern uint GetClipboardSequenceNumber();
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GUITHREADINFO
+    {
+        public uint cbSize;
+        public uint flags;
+        public IntPtr hwndActive;
+        public IntPtr hwndFocus;
+        public IntPtr hwndCapture;
+        public IntPtr hwndMenuOwner;
+        public IntPtr hwndMoveSize;
+        public IntPtr hwndCaret;
+        public RECT rcCaret;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam,
+        uint flags, uint timeout, out IntPtr result);
 
     // --- Scancode <-> character (the ToUnicodeEx analog of Carbon UCKeyTranslate) ---
     [DllImport("user32.dll")]
@@ -165,6 +195,7 @@ internal static class Win32
 
     // --- Injection (SendInput + KEYEVENTF_UNICODE; the CGEvent keyboardSetUnicodeString analog) ---
     public const uint INPUT_KEYBOARD = 1;
+    public const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     public const uint KEYEVENTF_KEYUP = 0x0002;
     public const uint KEYEVENTF_UNICODE = 0x0004;
     public const ushort VK_BACK = 0x08;
@@ -218,6 +249,11 @@ internal static class Win32
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    // Compatible virtual-key chord path on Windows ARM64. dwExtraInfo carries our marker so the
+    // low-level hook ignores these synthetic events just as it ignores SendInput events.
+    [DllImport("user32.dll")]
+    public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
     // --- Tray icon (Shell_NotifyIcon) + hidden message window ---
     public const uint NIM_ADD = 0x00000000;

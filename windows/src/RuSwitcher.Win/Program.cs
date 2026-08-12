@@ -194,7 +194,8 @@ internal static class Program
 
         Updater.CheckOnLaunch(ui);   // silent, throttled once-a-day, off the startup path
 
-        Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}");
+        Log($"RuSwitcher.Win started — hook + tray up, trigger={settings.Trigger}, " +
+            $"wholeLine={settings.ConvertWholeLine}, smart={settings.SmartConversion}");
 
         // Message loop: required for both the LL hook callbacks and the tray window.
         while (GetMessageW(out MSG msg, IntPtr.Zero, 0, 0) > 0)

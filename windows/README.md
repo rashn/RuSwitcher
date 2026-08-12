@@ -1,6 +1,6 @@
 # RuSwitcher for Windows
 
-**Status: beta.** A tray application built on the same philosophy as the macOS original —
+**Status: 0.9.2 beta.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
 
 ## Features (parity with the macOS version)
@@ -44,6 +44,8 @@ dotnet test    windows/tests/RuSwitcher.Win.Tests/RuSwitcher.Win.Tests.csproj -c
 dotnet publish windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj -c Release -r win-x64 `
   --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
 ```
+
+For native Windows on ARM, replace `win-x64` with `win-arm64`.
 
 The project sets `EnableWindowsTargeting`, so it also **compiles** on macOS/Linux (a fast
 compile-check); the real build/test/exe come from the `windows-build` CI on a Windows runner. The

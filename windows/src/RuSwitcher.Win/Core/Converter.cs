@@ -1,4 +1,3 @@
-using System.Windows.Forms;
 using static RuSwitcher.Win.Native.Win32;
 
 namespace RuSwitcher.Win.Core;
@@ -126,25 +125,45 @@ internal static class Converter
     /// MUST run on the message loop (STA), never inside the hook callback.</summary>
     public static bool ConvertSelection(bool smart)
     {
+        LastDiagnostic = "";
         IntPtr sourceHkl = LayoutSwitcher.Current();
-        if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
+        if (LayoutSwitcher.Opposite() is not { } targetHkl)
+        {
+            LastDiagnostic = "no opposite layout";
+            return false;
+        }
 
-        string? saved = SafeGetText();
-        SafeClear();
-        if (!TextInjector.SendCtrl(VK_C)) { RestoreClipboard(saved); return false; }
-        Thread.Sleep(60);                       // let the focused app place the selection on the clipboard
-        string sel = SafeGetText() ?? "";
-        if (sel.Length == 0) { RestoreClipboard(saved); return false; }   // nothing selected
+        var clipboard = ClipboardSnapshot.Capture();
+        if (!ClipboardSnapshot.TryCopySelection(out string sel, out string copyDiagnostic))
+        {
+            clipboard.Restore();
+            LastDiagnostic = copyDiagnostic;
+            return false;
+        }
 
         string converted = smart
             ? SmartConvert.Selection(sel, sourceHkl, targetHkl)
             : KeyMapper.ConvertText(sel, sourceHkl, targetHkl);
-        if (converted == sel) { RestoreClipboard(saved); return false; }  // no-op
+        if (converted == sel)
+        {
+            clipboard.Restore();
+            LastDiagnostic = "selection conversion is a no-op";
+            return false;
+        }
 
-        SafeSetText(converted);
-        if (!TextInjector.SendCtrl(VK_V)) { RestoreClipboard(saved); return false; }
-        Thread.Sleep(60);                       // let the paste happen before we restore the clipboard
-        RestoreClipboard(saved);
+        // Ctrl+C leaves the selection in place. Restore the user's clipboard first, then type the
+        // replacement directly as Unicode instead of relying on a timing-sensitive Ctrl+V.
+        if (!clipboard.Restore())
+        {
+            LastDiagnostic = "could not restore the clipboard";
+            return false;
+        }
+        if (!TextInjector.Replace(backspaces: 0, text: converted))
+        {
+            LastDiagnostic = TextInjector.LastDiagnostic;
+            return false;
+        }
+        LayoutSwitcher.SwitchTo(targetHkl);
         return true;
     }
 
@@ -153,8 +172,14 @@ internal static class Converter
     /// selection. On a no-op, collapse the selection (End) so the line isn't left highlighted.</summary>
     public static bool ConvertLine(bool smart)
     {
-        if (!TextInjector.SendShift(VK_HOME)) return false;   // select from cursor to line start
-        Thread.Sleep(40);
+        LastDiagnostic = "";
+        TextInjector.WaitForPhysicalModifiersReleased();
+        if (!TextInjector.SendShift(VK_HOME))
+        {
+            LastDiagnostic = TextInjector.LastDiagnostic;
+            return false;
+        }
+        Thread.Sleep(80); // allow custom editors to apply the selection before WM_COPY
         bool ok = ConvertSelection(smart);
         if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)
         return ok;
@@ -167,23 +192,5 @@ internal static class Converter
         while (a < b && !char.IsLetter(s[a])) a++;
         while (b > a && !char.IsLetter(s[b - 1])) b--;
         return s.Substring(a, b - a).ToLowerInvariant();
-    }
-
-    // Clipboard is shared + can be briefly locked by other apps — retry, never throw.
-    private static string? SafeGetText()
-    {
-        try { return Clipboard.ContainsText() ? Clipboard.GetText() : null; } catch { return null; }
-    }
-    private static void SafeSetText(string s)
-    {
-        for (int i = 0; i < 6; i++) { try { Clipboard.SetText(s); return; } catch { Thread.Sleep(15); } }
-    }
-    private static void SafeClear()
-    {
-        for (int i = 0; i < 6; i++) { try { Clipboard.Clear(); return; } catch { Thread.Sleep(15); } }
-    }
-    private static void RestoreClipboard(string? saved)
-    {
-        if (string.IsNullOrEmpty(saved)) SafeClear(); else SafeSetText(saved);
     }
 }

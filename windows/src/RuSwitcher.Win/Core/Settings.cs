@@ -58,15 +58,18 @@ public sealed class Settings
     /// <summary>A version the user chose to skip (not re-notified while it's the latest).</summary>
     public string SkippedVersion { get; set; } = "";
 
-    /// <summary>Process-wide settings instance (loaded once). Core classes read this directly,
-    /// mirroring the macOS SettingsManager.shared singleton.</summary>
-    public static Settings Current { get; } = Load();
-
+    // Must be initialized before Current: Load needs the enum converter for values such as
+    // "CtrlDoubleTap". With the reverse order, every persisted settings file silently fell back
+    // to defaults because Json was still null during the type initializer.
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter() },
     };
+
+    /// <summary>Process-wide settings instance (loaded once). Core classes read this directly,
+    /// mirroring the macOS SettingsManager.shared singleton.</summary>
+    public static Settings Current { get; } = Load();
 
     private static string Dir =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RuSwitcher");
@@ -77,11 +80,14 @@ public sealed class Settings
         try
         {
             if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<Settings>(File.ReadAllText(FilePath), Json) ?? new Settings();
+                return Deserialize(File.ReadAllText(FilePath));
         }
         catch { /* повреждён/недоступен — дефолты */ }
         return new Settings();
     }
+
+    internal static Settings Deserialize(string json) =>
+        JsonSerializer.Deserialize<Settings>(json, Json) ?? new Settings();
 
     public void Save()
     {

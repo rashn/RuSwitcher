@@ -33,8 +33,10 @@ counterpart exists.
 
 ### 0.9.2 beta — selection and compatibility
 
-- Verify selection and whole-line conversion in Notepad, Office, browsers, Electron editors and terminals.
-- Preserve all clipboard formats, not only text.
+- Selection and whole-line conversion verified end to end in standard Windows text fields on ARM64.
+- Preserve all clipboard formats, not only text (verified with Unicode text plus a custom format).
+- Persisted settings now load correctly after restart; the previous initializer order silently reset them.
+- Notepad, Office, browser/Electron and terminal compatibility remain active matrix items.
 - Add safe fallbacks per application class and visible failure feedback.
 - Regression scenarios for punctuation, mixed text and protected/elevated windows.
 

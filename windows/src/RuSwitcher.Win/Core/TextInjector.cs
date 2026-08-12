@@ -41,22 +41,52 @@ internal static class TextInjector
     /// <summary>Send a single plain key press (e.g. End to collapse a selection).</summary>
     public static bool SendKey(ushort vk)
     {
-        var inputs = new[] { Key(vk, '\0', dwFlags: 0), Key(vk, '\0', dwFlags: KEYEVENTF_KEYUP) };
-        return Send(inputs);
+        uint flags = ExtendedFlag(vk);
+        VirtualKey(vk, flags);
+        VirtualKey(vk, flags | KEYEVENTF_KEYUP);
+        LastDiagnostic = "";
+        return true;
+    }
+
+    /// <summary>Wait until the physical trigger chord is fully released. Injecting another chord
+    /// while Ctrl/Shift/Alt/Win is still down can turn Shift+Home into Ctrl+Shift+Home or make a
+    /// fallback Ctrl+C indistinguishable from the user's trigger.</summary>
+    public static void WaitForPhysicalModifiersReleased(int timeoutMs = 300)
+    {
+        long deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            bool down = (GetAsyncKeyState(VK_CONTROL_STATE) & 0x8000) != 0
+                     || (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0
+                     || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0
+                     || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0
+                     || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
+            if (!down) break;
+            Thread.Sleep(5);
+        }
+        Thread.Sleep(20); // let the foreground application consume the final key-up
     }
 
     // modVk + vk as one chord. Carries the injected marker so our own hook ignores it.
     private static bool SendChord(ushort modVk, ushort vk)
     {
-        var inputs = new[]
-        {
-            Key(modVk, '\0', dwFlags: 0),
-            Key(vk, '\0', dwFlags: 0),
-            Key(vk, '\0', dwFlags: KEYEVENTF_KEYUP),
-            Key(modVk, '\0', dwFlags: KEYEVENTF_KEYUP),
-        };
-        return Send(inputs);
+        uint flags = ExtendedFlag(vk);
+        VirtualKey(modVk, 0);
+        VirtualKey(vk, flags);
+        VirtualKey(vk, flags | KEYEVENTF_KEYUP);
+        VirtualKey(modVk, KEYEVENTF_KEYUP);
+        LastDiagnostic = "";
+        return true;
     }
+
+    private static void VirtualKey(ushort vk, uint flags) =>
+        keybd_event((byte)vk, 0, flags, (UIntPtr)InjectedMarker);
+
+    private static uint ExtendedFlag(ushort vk) => vk is
+        0x21 or 0x22 or 0x23 or 0x24 or // PageUp, PageDown, End, Home
+        0x25 or 0x26 or 0x27 or 0x28 or // arrows
+        0x2D or 0x2E                    // Insert, Delete
+            ? KEYEVENTF_EXTENDEDKEY : 0;
 
     /// <summary>True only when Windows accepted every requested event. SendInput may return a
     /// partial count (or zero) without throwing; treating that as success corrupts the user's text.</summary>
