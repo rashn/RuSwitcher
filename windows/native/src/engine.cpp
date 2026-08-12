@@ -164,6 +164,8 @@ struct Engine::Impl {
     HWND message_window{};
     HHOOK keyboard_hook{};
     HHOOK mouse_hook{};
+    HWINEVENTHOOK foreground_hook{};
+    HWINEVENTHOOK focus_hook{};
     std::vector<TypedKey> word;
     HWND word_owner{};
 
@@ -276,6 +278,23 @@ struct Engine::Impl {
         return CallNextHookEx(instance ? instance->mouse_hook : nullptr, code, message, data);
     }
 
+    static void CALLBACK window_event_proc(HWINEVENTHOOK, DWORD event, HWND window, LONG,
+                                           LONG, DWORD, DWORD) noexcept {
+        if (!instance) return;
+        if (event == EVENT_SYSTEM_FOREGROUND) {
+            instance->clear_all();
+            return;
+        }
+
+        // Tab can move between two fields without a mouse click or a foreground-window change.
+        // Only accept focus events that belong to the active top-level window; background UIA
+        // traffic must not invalidate a word the user is currently typing elsewhere.
+        if (event == EVENT_OBJECT_FOCUS && window) {
+            const HWND root = GetAncestor(window, GA_ROOT);
+            if (root && root == GetForegroundWindow()) instance->clear_all();
+        }
+    }
+
     bool install() noexcept {
         instance = this;
         const HINSTANCE module = GetModuleHandleW(nullptr);
@@ -284,6 +303,23 @@ struct Engine::Impl {
         mouse_hook = SetWindowsHookExW(WH_MOUSE_LL, mouse_proc, module, 0);
         if (!mouse_hook) {
             UnhookWindowsHookEx(keyboard_hook);
+            keyboard_hook = nullptr;
+            return false;
+        }
+        foreground_hook = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+                                          nullptr, window_event_proc, 0, 0,
+                                          WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        focus_hook = SetWinEventHook(EVENT_OBJECT_FOCUS, EVENT_OBJECT_FOCUS, nullptr,
+                                     window_event_proc, 0, 0,
+                                     WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
+        if (!foreground_hook || !focus_hook) {
+            if (focus_hook) UnhookWinEvent(focus_hook);
+            if (foreground_hook) UnhookWinEvent(foreground_hook);
+            UnhookWindowsHookEx(mouse_hook);
+            UnhookWindowsHookEx(keyboard_hook);
+            focus_hook = nullptr;
+            foreground_hook = nullptr;
+            mouse_hook = nullptr;
             keyboard_hook = nullptr;
             return false;
         }
@@ -347,6 +383,8 @@ struct Engine::Impl {
     }
 
     ~Impl() {
+        if (focus_hook) UnhookWinEvent(focus_hook);
+        if (foreground_hook) UnhookWinEvent(foreground_hook);
         if (mouse_hook) UnhookWindowsHookEx(mouse_hook);
         if (keyboard_hook) UnhookWindowsHookEx(keyboard_hook);
         if (instance == this) instance = nullptr;

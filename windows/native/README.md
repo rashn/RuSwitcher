@@ -31,8 +31,9 @@ Verified locally on Windows ARM64 with real input events:
 - double-Ctrl conversion of the buffered last word (`ghbdtn` to `привет`);
 - repeated-trigger undo (`привет` back to `ghbdtn`);
 - standard password fields are detected and left unchanged;
+- Backspace is mirrored in the typed-word buffer;
+- caret movement, mouse clicks, shortcuts and focus/window changes invalidate stale text;
 - the executable imports Windows system DLLs only.
 
-Current release sizes are 110 KiB (ARM64) and 122.5 KiB (x64). The next acceptance slice is editing
-safety: Backspace mirroring plus buffer invalidation after caret movement, mouse clicks, shortcuts and
-focus changes.
+Current release sizes are 110.5 KiB (ARM64) and 123.5 KiB (x64). The next acceptance slice is
+universal selection and whole-line conversion with full clipboard restoration and multiline tests.
