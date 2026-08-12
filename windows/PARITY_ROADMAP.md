@@ -37,8 +37,8 @@ counterpart exists.
 - Preserve all clipboard formats, not only text (verified with Unicode text plus a custom format).
 - Persisted settings now load correctly after restart; the previous initializer order silently reset them.
 - Modern Notepad, Chrome, Edge and Windows Terminal verified end to end on ARM64.
-- Chromium/Electron controls bypass unsupported `WM_COPY`; terminal whole-line mode converts the
-  keyboard-hook line buffer instead of sending terminal control sequences.
+- Conversion routing is capability/state based, with no executable-name allowlist: typed lines use
+  the keyboard-hook buffer and pre-existing selections use a single keyboard-copy path.
 - Office and standalone Electron applications remain active matrix items.
 - Add safe fallbacks per application class and actionable failure diagnostics.
 - Regression scenarios for punctuation, mixed text and protected/elevated windows.

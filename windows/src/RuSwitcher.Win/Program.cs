@@ -90,21 +90,23 @@ internal static class Program
             if (!enabled) return;
             int wordKeys = buffer.CurrentWord.Count;
             int lineKeys = buffer.CurrentLine.Count;
-            string app = AppCompatibility.ForegroundProcessName() ?? "unknown";
+            string app = TriggerRouting.ForegroundProcessName();
             // Trigger again with nothing typed since = reverse the last conversion (toggle);
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
-            bool acted;
-            if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
-            else if (settings.ConvertWholeLine)
+            TriggerAction action = TriggerRouting.Decide(settings.ConvertWholeLine,
+                Converter.CanReconvert, wordKeys, lineKeys);
+            bool acted = action switch
             {
-                acted = AppCompatibility.IsTerminalForeground()
-                    ? Converter.ConvertBufferedLine(buffer.CurrentLine, settings.SmartConversion)
-                    : Converter.ConvertLine(settings.SmartConversion);
-                if (acted) buffer.Reset();
-            }
-            else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
-            else acted = Converter.ConvertSelection(settings.SmartConversion);
-            Log($"trigger: acted={acted}, app={app}, wordKeys={wordKeys}, lineKeys={lineKeys}" +
+                TriggerAction.Reconvert => Converter.Reconvert(),
+                TriggerAction.BufferedWord => Converter.ConvertLastWord(buffer),
+                TriggerAction.BufferedLine => Converter.ConvertBufferedLine(buffer.CurrentLine,
+                    settings.SmartConversion),
+                TriggerAction.SystemLine => Converter.ConvertLine(settings.SmartConversion),
+                _ => Converter.ConvertSelection(settings.SmartConversion),
+            };
+            if (acted && action is TriggerAction.BufferedLine or TriggerAction.SystemLine)
+                buffer.Reset();
+            Log($"trigger: action={action}, acted={acted}, app={app}, wordKeys={wordKeys}, lineKeys={lineKeys}" +
                 (acted ? "" : $", reason={Converter.LastDiagnostic}"));
         };
         tray.AutoConvertActivated += () =>

@@ -52,25 +52,8 @@ internal sealed class ClipboardSnapshot
 
         uint clearedAt = GetClipboardSequenceNumber();
 
-        // Standard Win32/WinForms/WPF/Office controls support WM_COPY directly. Chromium/Electron
-        // editors do not: sending WM_COPY first can suppress the following keyboard copy, so those
-        // apps go straight to their concrete left-Ctrl+C fallback.
-        bool keyboardCopy = AppCompatibility.UsesKeyboardCopyForeground();
-        if (!keyboardCopy)
-        {
-            SendCopyToFocusedControl();
-            if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 180, out text)) return true;
-            // Remove any partial/delayed WM_COPY ownership before the keyboard fallback.
-            if (!ClearForCopy())
-            {
-                diagnostic = "clipboard became busy before Ctrl+C fallback";
-                return false;
-            }
-            clearedAt = GetClipboardSequenceNumber();
-        }
-
-        // Chromium/Electron go straight from the first clear to a concrete left Ctrl+C. Clearing
-        // twice without an intervening owner change makes some Chromium builds ignore the copy.
+        // First ask every editor through the same real keyboard command. This covers custom,
+        // Chromium/Electron and terminal-like controls without knowing their executable names.
         IntPtr foregroundAtFallback = GetForegroundWindow();
         if (!TextInjector.SendCtrl(VK_C))
         {
@@ -78,7 +61,19 @@ internal sealed class ClipboardSnapshot
             return false;
         }
 
-        if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 800, out text)) return true;
+        if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 650, out text)) return true;
+
+        // Some native document controls only implement WM_COPY reliably. Probe that capability
+        // only after the keyboard path has demonstrably produced nothing. The order matters:
+        // sending an unsupported WM_COPY before Ctrl+C can suppress asynchronous browser copies.
+        if (!ClearForCopy())
+        {
+            diagnostic = "clipboard became busy before native copy fallback";
+            return false;
+        }
+        clearedAt = GetClipboardSequenceNumber();
+        SendCopyToFocusedControl();
+        if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 300, out text)) return true;
 
         uint finalSequence = GetClipboardSequenceNumber();
         string formats;

@@ -1,6 +1,6 @@
 {
-  "version": "0.9.2-beta.3",
-  "url": "https://github.com/rashn/RuSwitcher/releases/tag/win-v0.9.2-beta.3",
-  "notes": "Windows compatibility hotfix: ChatGPT/Codex Electron editors now use the Chromium selection-copy path; trigger diagnostics include the active app and buffered key counts.",
+  "version": "0.9.2-beta.4",
+  "url": "https://github.com/rashn/RuSwitcher/releases/tag/win-v0.9.2-beta.4",
+  "notes": "Universal Windows routing: conversion mechanisms are selected from typed-buffer and selection state, never from application names.",
   "sha256": ""
 }

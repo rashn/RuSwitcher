@@ -185,15 +185,15 @@ internal static class Converter
         return ok;
     }
 
-    /// <summary>Terminals do not expose their editable command line as a normal Windows selection:
-    /// Shift+Home selects rendered cells and Ctrl+C may send ETX instead of copying. Convert the
-    /// line captured by our keyboard hook directly, while the caret is known to remain at its end.</summary>
+    /// <summary>Convert a line captured by our keyboard hook directly, while the caret is known to
+    /// remain at its end. This is the safest whole-line mechanism in every editor: it needs neither
+    /// selection nor clipboard access and therefore also works in terminals and custom controls.</summary>
     public static bool ConvertBufferedLine(IReadOnlyList<TypedKey> keys, bool smart)
     {
         LastDiagnostic = "";
         if (keys.Count == 0)
         {
-            LastDiagnostic = "terminal line buffer is empty";
+            LastDiagnostic = "line buffer is empty";
             return false;
         }
 
@@ -210,7 +210,7 @@ internal static class Converter
             : KeyMapper.ConvertWord(keys, targetHkl);
         if (original.Length == 0 || converted == original)
         {
-            LastDiagnostic = "terminal line conversion is a no-op";
+            LastDiagnostic = "line conversion is a no-op";
             return false;
         }
 
