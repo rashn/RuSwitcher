@@ -33,7 +33,12 @@ Verified locally on Windows ARM64 with real input events:
 - standard password fields are detected and left unchanged;
 - Backspace is mirrored in the typed-word buffer;
 - caret movement, mouse clicks, shortcuts and focus/window changes invalidate stale text;
+- universal selected-text conversion, including multiline CRLF text;
+- exact clipboard restoration, including custom binary formats;
+- whole-current-line conversion independent of the foreground application;
+- native tray UI with pause/resume, layout pair selection and launch-at-sign-in;
+- embedded icon and Windows version metadata;
 - the executable imports Windows system DLLs only.
 
-Current release sizes are 110.5 KiB (ARM64) and 123.5 KiB (x64). The next acceptance slice is
-universal selection and whole-line conversion with full clipboard restoration and multiline tests.
+The native beta remains intentionally small, has no third-party runtime dependencies and is built
+for ARM64 and x64. Run `scripts/check_windows_binary_size.ps1` for every release build.

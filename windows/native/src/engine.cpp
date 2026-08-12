@@ -1,5 +1,7 @@
 #include "engine.h"
 
+#include "clipboard.h"
+#include "diagnostics.h"
 #include "input_safety.h"
 
 #include <array>
@@ -61,13 +63,26 @@ bool shortcut_modifier_down() noexcept {
            (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
 }
 
+bool useful_foreground(HWND window, HWND own_window) noexcept {
+    if (!window || window == own_window || !IsWindow(window)) return false;
+    DWORD process{};
+    GetWindowThreadProcessId(window, &process);
+    if (process == GetCurrentProcessId()) return false;
+    wchar_t class_name[64]{};
+    GetClassNameW(window, class_name, static_cast<int>(std::size(class_name)));
+    return lstrcmpW(class_name, L"Shell_TrayWnd") != 0 &&
+           lstrcmpW(class_name, L"Shell_SecondaryTrayWnd") != 0 &&
+           lstrcmpW(class_name, L"Progman") != 0 && lstrcmpW(class_name, L"WorkerW") != 0 &&
+           lstrcmpW(class_name, L"#32768") != 0;
+}
+
 HKL current_layout() noexcept {
     const HWND foreground = GetForegroundWindow();
     const DWORD thread = GetWindowThreadProcessId(foreground, nullptr);
     return GetKeyboardLayout(thread);
 }
 
-HKL opposite_layout(HKL current) noexcept {
+HKL first_other_layout(HKL current) noexcept {
     const int count = GetKeyboardLayoutList(0, nullptr);
     if (count <= 1) return nullptr;
 
@@ -105,6 +120,57 @@ bool translate_keys(const std::vector<TypedKey>& keys, std::size_t count, HKL la
     return true;
 }
 
+bool is_letter(wchar_t character) noexcept {
+    WORD type{};
+    return GetStringTypeW(CT_CTYPE1, &character, 1, &type) && (type & C1_ALPHA) != 0;
+}
+
+void add_text_pair(std::vector<std::pair<wchar_t, wchar_t>>& pairs, DWORD vk, bool shift,
+                   HKL source, HKL target) {
+    const DWORD scan = MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC, source);
+    const TypedKey key{vk, scan, shift, false};
+    wchar_t from{};
+    wchar_t to{};
+    if (!translate_key(key, source, from) || !translate_key(key, target, to) || from == to ||
+        !is_letter(from))
+        return;
+    for (const auto& pair : pairs)
+        if (pair.first == from) return;
+    pairs.emplace_back(from, to);
+}
+
+std::wstring convert_text(const std::wstring& text, HKL source, HKL target) {
+    std::vector<std::pair<wchar_t, wchar_t>> pairs;
+    pairs.reserve(96);
+    for (DWORD vk = '0'; vk <= '9'; ++vk) {
+        add_text_pair(pairs, vk, false, source, target);
+        add_text_pair(pairs, vk, true, source, target);
+    }
+    for (DWORD vk = 'A'; vk <= 'Z'; ++vk) {
+        add_text_pair(pairs, vk, false, source, target);
+        add_text_pair(pairs, vk, true, source, target);
+    }
+    constexpr DWORD oem_keys[]{VK_OEM_1, VK_OEM_PLUS,  VK_OEM_COMMA, VK_OEM_MINUS,
+                               VK_OEM_PERIOD, VK_OEM_2, VK_OEM_3,     VK_OEM_4,
+                               VK_OEM_5,      VK_OEM_6, VK_OEM_7,     VK_OEM_8,
+                               VK_OEM_102};
+    for (const DWORD vk : oem_keys) {
+        add_text_pair(pairs, vk, false, source, target);
+        add_text_pair(pairs, vk, true, source, target);
+    }
+
+    std::wstring result = text;
+    for (auto& character : result) {
+        for (const auto& pair : pairs) {
+            if (character == pair.first) {
+                character = pair.second;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 bool is_trailing_punctuation(wchar_t character) noexcept {
     switch (character) {
         case L',':
@@ -130,6 +196,17 @@ INPUT key_input(WORD vk, WORD scan, DWORD flags) noexcept {
     return input;
 }
 
+bool send_line_selection() noexcept {
+    INPUT inputs[]{key_input(VK_HOME, 0, 0),
+                   key_input(VK_HOME, 0, KEYEVENTF_KEYUP),
+                   key_input(VK_SHIFT, 0, 0),
+                   key_input(VK_END, 0, 0),
+                   key_input(VK_END, 0, KEYEVENTF_KEYUP),
+                   key_input(VK_SHIFT, 0, KEYEVENTF_KEYUP)};
+    return SendInput(static_cast<UINT>(std::size(inputs)), inputs, sizeof(INPUT)) ==
+           std::size(inputs);
+}
+
 bool replace_text(std::size_t characters_to_delete, const std::wstring& replacement) {
     std::vector<INPUT> inputs;
     inputs.reserve((characters_to_delete + replacement.size()) * 2);
@@ -138,7 +215,16 @@ bool replace_text(std::size_t characters_to_delete, const std::wstring& replacem
         inputs.push_back(key_input(VK_BACK, 0, 0));
         inputs.push_back(key_input(VK_BACK, 0, KEYEVENTF_KEYUP));
     }
-    for (const wchar_t character : replacement) {
+    for (std::size_t index = 0; index < replacement.size(); ++index) {
+        const wchar_t character = replacement[index];
+        if (character == L'\r' || character == L'\n') {
+            if (character == L'\r' && index + 1 < replacement.size() &&
+                replacement[index + 1] == L'\n')
+                ++index;
+            inputs.push_back(key_input(VK_RETURN, 0, 0));
+            inputs.push_back(key_input(VK_RETURN, 0, KEYEVENTF_KEYUP));
+            continue;
+        }
         inputs.push_back(key_input(0, static_cast<WORD>(character), KEYEVENTF_UNICODE));
         inputs.push_back(
             key_input(0, static_cast<WORD>(character), KEYEVENTF_UNICODE | KEYEVENTF_KEYUP));
@@ -147,6 +233,16 @@ bool replace_text(std::size_t characters_to_delete, const std::wstring& replacem
     if (inputs.empty()) return false;
     const UINT sent = SendInput(static_cast<UINT>(inputs.size()), inputs.data(), sizeof(INPUT));
     return sent == inputs.size();
+}
+
+std::size_t editing_length(const std::wstring& text) noexcept {
+    std::size_t length{};
+    for (std::size_t index = 0; index < text.size(); ++index) {
+        if (text[index] == L'\r' && index + 1 < text.size() && text[index + 1] == L'\n')
+            ++index;
+        ++length;
+    }
+    return length;
 }
 
 void switch_layout(HKL layout) noexcept {
@@ -168,6 +264,10 @@ struct Engine::Impl {
     HWINEVENTHOOK focus_hook{};
     std::vector<TypedKey> word;
     HWND word_owner{};
+    HWND last_foreground{};
+    bool enabled{true};
+    HKL first_layout{};
+    HKL second_layout{};
 
     bool control_down{};
     bool other_during_control{};
@@ -180,6 +280,14 @@ struct Engine::Impl {
     HKL alternate_layout{};
 
     static Impl* instance;
+
+    HKL target_layout(HKL current) const noexcept {
+        if (first_layout && second_layout) {
+            if (current == first_layout) return second_layout;
+            if (current == second_layout) return first_layout;
+        }
+        return first_other_layout(current);
+    }
 
     void clear_word() noexcept {
         word.clear();
@@ -194,6 +302,7 @@ struct Engine::Impl {
     }
 
     void on_key_down(DWORD vk, DWORD scan) {
+        if (!enabled) return;
         if (is_control(vk)) {
             if (!control_down) {
                 control_down = true;
@@ -241,6 +350,7 @@ struct Engine::Impl {
     }
 
     void on_key_up(DWORD vk) noexcept {
+        if (!enabled) return;
         if (!is_control(vk)) return;
         const bool tap = control_down && !other_during_control;
         control_down = false;
@@ -282,6 +392,8 @@ struct Engine::Impl {
                                            LONG, DWORD, DWORD) noexcept {
         if (!instance) return;
         if (event == EVENT_SYSTEM_FOREGROUND) {
+            if (useful_foreground(window, instance->message_window))
+                instance->last_foreground = window;
             instance->clear_all();
             return;
         }
@@ -297,6 +409,8 @@ struct Engine::Impl {
 
     bool install() noexcept {
         instance = this;
+        const HWND foreground = GetForegroundWindow();
+        if (useful_foreground(foreground, message_window)) last_foreground = foreground;
         const HINSTANCE module = GetModuleHandleW(nullptr);
         keyboard_hook = SetWindowsHookExW(WH_KEYBOARD_LL, keyboard_proc, module, 0);
         if (!keyboard_hook) return false;
@@ -326,14 +440,58 @@ struct Engine::Impl {
         return true;
     }
 
+    bool convert_selection(bool permit_undo) noexcept {
+        const HKL source = current_layout();
+        const HKL target = target_layout(source);
+        if (!source || !target) return false;
+
+        ClipboardSnapshot clipboard;
+        if (!clipboard.capture()) {
+            log_event(L"selection failed: snapshot");
+            return false;
+        }
+        std::wstring selected;
+        if (!copy_current_selection(selected)) {
+            log_event(L"selection failed: copy");
+            clipboard.restore();
+            return false;
+        }
+        std::wstring converted = convert_text(selected, source, target);
+        if (converted == selected) {
+            log_event(L"selection failed: mapping no-op");
+            clipboard.restore();
+            return false;
+        }
+        if (!clipboard.restore()) {
+            log_event(L"selection failed: restore");
+            return false;
+        }
+        if (!replace_text(0, converted)) {
+            log_event(L"selection failed: inject");
+            return false;
+        }
+        switch_layout(target);
+
+        if (permit_undo) {
+            screen_text = std::move(converted);
+            alternate_text = std::move(selected);
+            screen_layout = target;
+            alternate_layout = source;
+            undo_available = true;
+        }
+        return true;
+    }
+
     void convert_or_undo() noexcept {
+        if (!enabled) return;
         if (is_protected_foreground()) {
+            log_event(L"trigger blocked: protected field");
             clear_all();
             return;
         }
 
         if (undo_available) {
-            if (replace_text(screen_text.size(), alternate_text)) {
+            if (replace_text(editing_length(screen_text), alternate_text)) {
                 switch_layout(alternate_layout);
                 std::swap(screen_text, alternate_text);
                 std::swap(screen_layout, alternate_layout);
@@ -343,11 +501,12 @@ struct Engine::Impl {
 
         if (word.empty() || !word_owner || word_owner != GetForegroundWindow()) {
             clear_word();
+            convert_selection(true);
             return;
         }
 
         const HKL source = current_layout();
-        const HKL target = opposite_layout(source);
+        const HKL target = target_layout(source);
         if (!source || !target) return;
 
         std::size_t core_count = word.size();
@@ -382,6 +541,18 @@ struct Engine::Impl {
         clear_word();
     }
 
+    void convert_line() noexcept {
+        if (!enabled || is_protected_foreground()) return;
+        clear_all();
+        if (last_foreground && IsWindow(last_foreground)) {
+            SetForegroundWindow(last_foreground);
+            Sleep(80);
+        }
+        if (!send_line_selection()) return;
+        Sleep(90);
+        convert_selection(true);
+    }
+
     ~Impl() {
         if (focus_hook) UnhookWinEvent(focus_hook);
         if (foreground_hook) UnhookWinEvent(foreground_hook);
@@ -397,5 +568,20 @@ Engine::Engine(HWND message_window) noexcept : impl_(new Impl(message_window)) {
 Engine::~Engine() { delete impl_; }
 bool Engine::install() noexcept { return impl_->install(); }
 void Engine::convert_or_undo() noexcept { impl_->convert_or_undo(); }
+void Engine::convert_line() noexcept { impl_->convert_line(); }
+void Engine::set_enabled(bool enabled) noexcept {
+    impl_->enabled = enabled;
+    if (!enabled) impl_->clear_all();
+}
+bool Engine::enabled() const noexcept { return impl_->enabled; }
+void Engine::set_layout_pair(HKL first, HKL second) noexcept {
+    impl_->first_layout = first;
+    impl_->second_layout = second;
+    impl_->clear_all();
+}
+void Engine::remember_foreground() noexcept {
+    const HWND current = GetForegroundWindow();
+    if (useful_foreground(current, impl_->message_window)) impl_->last_foreground = current;
+}
 
 }  // namespace ruswitcher

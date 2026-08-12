@@ -1,17 +1,23 @@
 #include <objbase.h>
+#include <ole2.h>
 #include <windows.h>
 
 #include "engine.h"
+#include "settings.h"
+#include "tray.h"
 
 namespace {
 constexpr UINT kTriggerMessage = WM_APP + 1;
 ruswitcher::Engine* g_engine{};
+ruswitcher::Tray* g_tray{};
 
 LRESULT CALLBACK window_proc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) noexcept {
     if (message == kTriggerMessage && g_engine) {
         g_engine->convert_or_undo();
         return 0;
     }
+    LRESULT result{};
+    if (g_tray && g_tray->handle(message, wparam, lparam, result)) return result;
     return DefWindowProcW(window, message, wparam, lparam);
 }
 }
@@ -25,7 +31,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         return 0;
     }
 
-    const HRESULT com = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const HRESULT com = OleInitialize(nullptr);
 
     const wchar_t class_name[] = L"RuSwitcher.Native.MessageWindow";
     WNDCLASSW window_class{};
@@ -33,27 +39,43 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     window_class.hInstance = instance;
     window_class.lpszClassName = class_name;
     if (!RegisterClassW(&window_class)) {
-        if (SUCCEEDED(com)) CoUninitialize();
+        if (SUCCEEDED(com)) OleUninitialize();
         CloseHandle(single_instance);
         return 1;
     }
 
-    const HWND window = CreateWindowExW(0, class_name, L"RuSwitcher", 0, 0, 0, 0, 0,
-                                        HWND_MESSAGE, nullptr, instance, nullptr);
+    const HWND window = CreateWindowExW(WS_EX_TOOLWINDOW, class_name, L"RuSwitcher", WS_POPUP,
+                                        0, 0, 0, 0, nullptr, nullptr, instance, nullptr);
     if (!window) {
-        if (SUCCEEDED(com)) CoUninitialize();
+        if (SUCCEEDED(com)) OleUninitialize();
         CloseHandle(single_instance);
         return 1;
     }
 
     ruswitcher::Engine engine(window);
+    ruswitcher::Settings settings;
+    engine.set_enabled(settings.enabled());
+    engine.set_layout_pair(settings.first_layout(), settings.second_layout());
     g_engine = &engine;
     if (!engine.install()) {
         MessageBoxW(nullptr, L"RuSwitcher could not install the input hooks.", L"RuSwitcher",
                     MB_OK | MB_ICONERROR);
         g_engine = nullptr;
         DestroyWindow(window);
-        if (SUCCEEDED(com)) CoUninitialize();
+        if (SUCCEEDED(com)) OleUninitialize();
+        CloseHandle(single_instance);
+        return 1;
+    }
+
+    ruswitcher::Tray tray(window, instance, engine, settings);
+    g_tray = &tray;
+    if (!tray.show()) {
+        MessageBoxW(nullptr, L"RuSwitcher could not create its notification icon.", L"RuSwitcher",
+                    MB_OK | MB_ICONERROR);
+        g_tray = nullptr;
+        g_engine = nullptr;
+        DestroyWindow(window);
+        if (SUCCEEDED(com)) OleUninitialize();
         CloseHandle(single_instance);
         return 1;
     }
@@ -64,9 +86,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
         DispatchMessageW(&message);
     }
 
+    g_tray = nullptr;
     g_engine = nullptr;
     DestroyWindow(window);
-    if (SUCCEEDED(com)) CoUninitialize();
+    if (SUCCEEDED(com)) OleUninitialize();
     ReleaseMutex(single_instance);
     CloseHandle(single_instance);
     return 0;

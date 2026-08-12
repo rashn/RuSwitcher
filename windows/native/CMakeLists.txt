@@ -4,15 +4,20 @@ project(RuSwitcherNative LANGUAGES CXX)
 add_executable(RuSwitcherNative WIN32
     src/main.cpp
     src/engine.cpp
+    src/clipboard.cpp
+    src/diagnostics.cpp
     src/input_safety.cpp
+    src/settings.cpp
+    src/tray.cpp
+    src/resources.rc
 )
 
 target_compile_features(RuSwitcherNative PRIVATE cxx_std_20)
 target_compile_definitions(RuSwitcherNative PRIVATE UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
-target_link_libraries(RuSwitcherNative PRIVATE user32 ole32 uiautomationcore)
+target_link_libraries(RuSwitcherNative PRIVATE user32 shell32 advapi32 ole32 urlmon uiautomationcore)
 
 if(MSVC)
-    target_compile_options(RuSwitcherNative PRIVATE /O1 /Os /GL /Gy /Gw /permissive- /W4)
+    target_compile_options(RuSwitcherNative PRIVATE /O1 /Os /GL /Gy /Gw /utf-8 /permissive- /W4)
     target_link_options(RuSwitcherNative PRIVATE /LTCG /OPT:REF /OPT:ICF /INCREMENTAL:NO)
 endif()
 

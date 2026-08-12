@@ -34,6 +34,12 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass
           -File scripts/check_windows_binary_size.ps1
           build/native-${{ matrix.architecture }}/Release/RuSwitcher.exe -MaximumMiB 5
+      - name: Upload compact native executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: RuSwitcher-native-${{ matrix.architecture }}
+          path: build/native-${{ matrix.architecture }}/Release/RuSwitcher.exe
+          if-no-files-found: error
 
   build:
     runs-on: windows-latest

@@ -30,10 +30,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
-
       - name: Resolve version
         id: ver
         shell: pwsh
@@ -48,24 +44,15 @@ jobs:
           "prerelease=$pre" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           Write-Host "version=$v prerelease=$pre"
 
-      - name: Test
-        run: dotnet test windows/tests/RuSwitcher.Win.Tests/RuSwitcher.Win.Tests.csproj -c Release --nologo
-
-      - name: Publish single-file exe (x64)
-        run: >
-          dotnet publish windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj
-          -c Release -r win-x64 --self-contained true
-          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/x64 --nologo
-
-      - name: Publish single-file exe (arm64)
-        run: >
-          dotnet publish windows/src/RuSwitcher.Win/RuSwitcher.Win.csproj
-          -c Release -r win-arm64 --self-contained true
-          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:Version=${{ steps.ver.outputs.version }}
-          -o publish/arm64 --nologo
+      - name: Configure and build compact native binaries
+        shell: pwsh
+        run: |
+          cmake -S windows/native -B build/native-x64 -A x64
+          cmake --build build/native-x64 --config Release
+          cmake -S windows/native -B build/native-arm64 -A ARM64
+          cmake --build build/native-arm64 --config Release
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-x64/Release/RuSwitcher.exe -MaximumMiB 5
+          pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-arm64/Release/RuSwitcher.exe -MaximumMiB 5
 
       # --- optional code signing (only if a cert secret is configured) ---
       - name: Import signing certificate
@@ -89,7 +76,7 @@ jobs:
                  Where-Object { $_.Name -match '^\d+\.\d+\.\d+' } |
                  Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
           $signtool = Join-Path $sdk.FullName "x64\signtool.exe"
-          foreach ($exe in @("publish\x64\RuSwitcher.exe","publish\arm64\RuSwitcher.exe")) {
+          foreach ($exe in @("build\native-x64\Release\RuSwitcher.exe","build\native-arm64\Release\RuSwitcher.exe")) {
             & $signtool sign /f "${{ steps.cert.outputs.pfx }}" /p "$env:CERT_PW" `
               /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $exe
           }
@@ -106,9 +93,15 @@ jobs:
           # SourceExe MUST be absolute: ISCC resolves relative [Files] Source paths against the .iss
           # file's own directory (windows\installer), not the workflow working directory.
           & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
-                  "/DSourceExe=${{ github.workspace }}\publish\x64\RuSwitcher.exe" `
+                  "/DSourceExe=${{ github.workspace }}\build\native-x64\Release\RuSwitcher.exe" `
+                  "/DMyAppArch=x64" `
                   windows\installer\RuSwitcher.iss
-          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit $LASTEXITCODE" }
+          if ($LASTEXITCODE -ne 0) { throw "ISCC x64 failed with exit $LASTEXITCODE" }
+          & $iscc "/DMyAppVersion=${{ steps.ver.outputs.version }}" `
+                  "/DSourceExe=${{ github.workspace }}\build\native-arm64\Release\RuSwitcher.exe" `
+                  "/DMyAppArch=arm64" `
+                  windows\installer\RuSwitcher.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC ARM64 failed with exit $LASTEXITCODE" }
           # ISCC writes to windows\installer\dist\
           Get-ChildItem windows\installer\dist
 
@@ -133,8 +126,8 @@ jobs:
         run: |
           $v = '${{ steps.ver.outputs.version }}'
           New-Item -ItemType Directory -Force -Path assets | Out-Null
-          Copy-Item publish\x64\RuSwitcher.exe   "assets\RuSwitcher-$v-win-x64.exe"
-          Copy-Item publish\arm64\RuSwitcher.exe "assets\RuSwitcher-$v-win-arm64.exe"
+          Copy-Item build\native-x64\Release\RuSwitcher.exe   "assets\RuSwitcher-$v-win-x64.exe"
+          Copy-Item build\native-arm64\Release\RuSwitcher.exe "assets\RuSwitcher-$v-win-arm64.exe"
           if (-not (Test-Path windows\installer\dist\*.exe)) { throw 'installer was not built' }
           Copy-Item windows\installer\dist\*.exe assets\
           $lines = @()

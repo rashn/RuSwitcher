@@ -12,7 +12,7 @@
   #define MyAppVersion "0.0.0"
 #endif
 #ifndef SourceExe
-  #define SourceExe "..\src\RuSwitcher.Win\bin\Release\net8.0-windows\win-x64\publish\RuSwitcher.exe"
+  #define SourceExe "..\..\.artifacts\native-x64\RuSwitcher.exe"
 #endif
 #ifndef MyAppArch
   #define MyAppArch "x64"
