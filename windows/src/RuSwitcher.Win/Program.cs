@@ -21,6 +21,15 @@ internal static class Program
         string logPath = Path.Combine(logDir, "debug.log");
         void Log(string line) => File.AppendAllText(logPath, $"{DateTime.Now:HH:mm:ss.fff} {line}{Environment.NewLine}");
 
+        // Only one process may own the global low-level keyboard hook. Multiple instances would
+        // observe the same physical keystrokes and race to inject converted text.
+        using var singleInstance = new Mutex(initiallyOwned: true, @"Local\RuSwitcher", out bool isFirstInstance);
+        if (!isFirstInstance)
+        {
+            Log("startup skipped: another RuSwitcher instance is already running");
+            return;
+        }
+
         // Capture crashes to the log instead of dying silently (a tester can then send debug.log).
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         { try { Log("FATAL: " + (e.ExceptionObject as Exception)?.ToString()); } catch { /* ignore */ } };
