@@ -88,6 +88,9 @@ internal static class Program
         tray.TriggerActivated += () =>
         {
             if (!enabled) return;
+            int wordKeys = buffer.CurrentWord.Count;
+            int lineKeys = buffer.CurrentLine.Count;
+            string app = AppCompatibility.ForegroundProcessName() ?? "unknown";
             // Trigger again with nothing typed since = reverse the last conversion (toggle);
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
             bool acted;
@@ -101,7 +104,8 @@ internal static class Program
             }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
             else acted = Converter.ConvertSelection(settings.SmartConversion);
-            Log($"trigger: acted={acted}" + (acted ? "" : $", reason={Converter.LastDiagnostic}"));
+            Log($"trigger: acted={acted}, app={app}, wordKeys={wordKeys}, lineKeys={lineKeys}" +
+                (acted ? "" : $", reason={Converter.LastDiagnostic}"));
         };
         tray.AutoConvertActivated += () =>
         {

@@ -25,6 +25,8 @@ public class AppCompatibilityTests
     [InlineData("msedge")]
     [InlineData("Code")]
     [InlineData("discord")]
+    [InlineData("ChatGPT")]
+    [InlineData("codex")]
     public void Chromium_and_electron_apps_skip_wm_copy(string name) =>
         Assert.True(AppCompatibility.UsesKeyboardCopyProcessName(name));
 

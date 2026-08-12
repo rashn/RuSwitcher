@@ -16,7 +16,7 @@ internal static class AppCompatibility
     private static readonly HashSet<string> KeyboardCopyProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
         "chrome", "msedge", "chromium", "electron", "code", "discord", "slack", "spotify",
-        "notion", "obsidian", "teams", "ms-teams",
+        "notion", "obsidian", "teams", "ms-teams", "chatgpt", "codex",
     };
 
     public static bool IsTerminalForeground() =>

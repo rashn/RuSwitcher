@@ -1,6 +1,6 @@
 # RuSwitcher for Windows
 
-**Status: 0.9.2 beta 2.** A tray application built on the same philosophy as the macOS original —
+**Status: 0.9.2 beta 3.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
 
 ## Features (parity with the macOS version)
@@ -24,8 +24,8 @@ zero external dependencies, no telemetry, local dictionaries, keycode-based conv
 - **Localized UI** — English and Russian (more languages to follow; falls back to English).
 
 The ARM64 compatibility matrix currently includes modern Notepad, Google Chrome, Microsoft Edge,
-standard WinForms fields and Windows Terminal. Chromium/Electron editors use a keyboard-copy path;
-normal document controls continue to use the deterministic native copy message.
+ChatGPT/Codex, standard WinForms fields and Windows Terminal. Chromium/Electron editors use a
+keyboard-copy path; normal document controls continue to use the deterministic native copy message.
 
 ## Engine mapping
 
