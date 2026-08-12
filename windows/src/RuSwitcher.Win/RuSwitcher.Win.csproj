@@ -10,6 +10,17 @@
     <TargetFramework>net8.0-windows</TargetFramework>
     <RootNamespace>RuSwitcher.Win</RootNamespace>
     <AssemblyName>RuSwitcher</AssemblyName>
+    <ApplicationIcon>Assets\RuSwitcher.ico</ApplicationIcon>
+    <Product>RuSwitcher</Product>
+    <Title>RuSwitcher for Windows</Title>
+    <Description>Keyboard layout correction utility for Windows</Description>
+    <AssemblyTitle>RuSwitcher for Windows</AssemblyTitle>
+    <AssemblyDescription>Keyboard layout correction utility for Windows</AssemblyDescription>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <Company>RuSwitcher</Company>
+    <Authors>rashn</Authors>
+    <Copyright>Copyright © rashn</Copyright>
+    <RepositoryUrl>https://github.com/rashn/RuSwitcher</RepositoryUrl>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

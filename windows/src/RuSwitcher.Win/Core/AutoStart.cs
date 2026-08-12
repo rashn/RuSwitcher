@@ -38,4 +38,11 @@ internal static class AutoStart
         }
         catch { /* policy / access — ignore */ }
     }
+
+    /// <summary>Keep an existing launch-at-login entry pointed at the currently running build.
+    /// This matters after an installer upgrade or when replacing a portable beta.</summary>
+    public static void RefreshIfEnabled()
+    {
+        if (IsEnabled()) SetEnabled(true);
+    }
 }

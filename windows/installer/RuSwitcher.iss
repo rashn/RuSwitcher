@@ -14,6 +14,9 @@
 #ifndef SourceExe
   #define SourceExe "..\src\RuSwitcher.Win\bin\Release\net8.0-windows\win-x64\publish\RuSwitcher.exe"
 #endif
+#ifndef MyAppArch
+  #define MyAppArch "x64"
+#endif
 
 #define MyAppName "RuSwitcher"
 #define MyAppPublisher "RuSwitcher"
@@ -34,12 +37,22 @@ DisableProgramGroupPage=yes
 ; Per-user install → no UAC elevation needed (matches a menu-bar utility's footprint).
 PrivilegesRequired=lowest
 OutputDir=dist
-OutputBaseFilename=RuSwitcher-Setup-{#MyAppVersion}
+OutputBaseFilename=RuSwitcher-Setup-{#MyAppVersion}-{#MyAppArch}
+SetupIconFile=..\src\RuSwitcher.Win\Assets\RuSwitcher.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+CloseApplications=yes
+RestartApplications=no
+AppMutex=RuSwitcher
+#if MyAppArch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

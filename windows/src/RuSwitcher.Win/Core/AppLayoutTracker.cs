@@ -19,6 +19,8 @@ internal sealed class AppLayoutTracker : IDisposable
 
     public AppLayoutTracker() => _proc = OnForeground;
 
+    public event Action? ForegroundChanged;
+
     public void Install()
     {
         // SKIPOWNPROCESS: never react to our own tray/settings windows getting focus.
@@ -30,7 +32,9 @@ internal sealed class AppLayoutTracker : IDisposable
     {
         try
         {
-            if (!Settings.Current.PerAppLayout || hwnd == IntPtr.Zero) return;
+            if (hwnd == IntPtr.Zero) return;
+            ForegroundChanged?.Invoke();
+            if (!Settings.Current.PerAppLayout) return;
 
             // The event fires AFTER the foreground already switched, so GetForegroundWindow() is the
             // NEW app. To remember the OUTGOING app correctly, read the layout of ITS gui thread — a

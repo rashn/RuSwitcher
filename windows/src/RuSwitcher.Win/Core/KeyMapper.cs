@@ -22,10 +22,10 @@ internal static class KeyMapper
         if (key.Shift) state[0x10] = 0x80;               // VK_SHIFT down
         if (key.Caps) state[0x14] = 0x01;                // VK_CAPITAL toggled
 
-        var buf = new char[8];
+        var buf = new System.Text.StringBuilder(8);
         // wFlags bit 2 (0x4): do not change the keyboard state (avoids clobbering real dead-key
         // state). Dead-key edge cases are deferred, mirroring the macOS NoDeadKeys approach.
-        int n = ToUnicodeEx(key.VkCode, key.ScanCode, state, buf, buf.Length, 0x4, hkl);
+        int n = ToUnicodeEx(key.VkCode, key.ScanCode, state, buf, buf.Capacity, 0x4, hkl);
         return n >= 1 ? buf[0] : null;
     }
 

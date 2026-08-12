@@ -18,6 +18,12 @@ internal sealed class SettingsForm : Form
         var s = Settings.Current;
 
         Text = L10n.T("settings.title");
+        try
+        {
+            string? exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe)) Icon = Icon.ExtractAssociatedIcon(exe);
+        }
+        catch { /* keep the WinForms default */ }
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;

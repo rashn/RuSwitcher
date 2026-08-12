@@ -7,12 +7,16 @@ internal static class Win32
 {
     // --- Hook ---
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
     public const int HC_ACTION = 0;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_SYSKEYDOWN = 0x0104;
     public const int WM_KEYUP = 0x0101;
     public const int WM_SYSKEYUP = 0x0105;
     public const uint LLKHF_INJECTED = 0x10;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const int WM_MBUTTONDOWN = 0x0207;
 
     // Marker written into the dwExtraInfo of our own injected events, so the hook can
     // ignore them (the Windows counterpart of the macOS kRuSwitcherEventMarker userData).
@@ -29,9 +33,13 @@ internal static class Win32
     }
 
     public delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
+    public delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern IntPtr SetWindowsHookExW(int idHook, LowLevelKeyboardProc lpfn, IntPtr hmod, uint dwThreadId);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
+    public static extern IntPtr SetWindowsHookExMouseW(int idHook, LowLevelMouseProc lpfn, IntPtr hmod, uint dwThreadId);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -80,9 +88,10 @@ internal static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetKeyboardState(byte[] lpKeyState);
 
-    [DllImport("user32.dll")]
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int ToUnicodeEx(uint wVirtKey, uint wScanCode, byte[] lpKeyState,
-        [Out] char[] pwszBuff, int cchBuff, uint wFlags, IntPtr dwhkl);
+        [Out, MarshalAs(UnmanagedType.LPWStr)] System.Text.StringBuilder pwszBuff,
+        int cchBuff, uint wFlags, IntPtr dwhkl);
 
     [DllImport("user32.dll")]
     public static extern short GetKeyState(int nVirtKey);
@@ -94,7 +103,11 @@ internal static class Win32
     public static extern short GetAsyncKeyState(int nVirtKey);
 
     public const int VK_SHIFT = 0x10;
+    public const int VK_CONTROL_STATE = 0x11;
+    public const int VK_MENU = 0x12;
     public const int VK_CAPITAL = 0x14;
+    public const int VK_LWIN = 0x5B;
+    public const int VK_RWIN = 0x5C;
     // Триггер-клавиши (issue #24 Windows): выделенные клавиши + модификаторы для double-tap.
     public const uint VK_PAUSE = 0x13;
     public const uint VK_SCROLL = 0x91;

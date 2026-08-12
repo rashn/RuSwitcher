@@ -34,7 +34,7 @@ internal static class AutoConverter
 
         if (!ShouldConvert(typed, converted, srcTag, tgtTag, caps)) return false;
 
-        TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ");
+        if (!TextInjector.Replace(backspaces: keys.Count + 1, text: converted + " ")) return false;
         LayoutSwitcher.SwitchTo(targetHkl);
         Converter.NoteAutoConversion(converted, typed, targetHkl, sourceHkl);
         return true;

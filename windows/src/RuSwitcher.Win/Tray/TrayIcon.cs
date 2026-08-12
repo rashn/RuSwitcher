@@ -24,6 +24,7 @@ internal sealed class TrayIcon : IDisposable
     private readonly WndProc _wndProc;
     private IntPtr _hwnd;
     private NOTIFYICONDATA _nid;
+    private System.Drawing.Icon? _appIcon;
     private bool _enabled = true;
 
     public event Action<bool>? EnabledChanged;
@@ -67,6 +68,13 @@ internal sealed class TrayIcon : IDisposable
         _hwnd = CreateWindowExW(0, "RuSwitcherTrayWindow", "RuSwitcher",
             0, 0, 0, 0, 0, IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
 
+        try
+        {
+            string? exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe)) _appIcon = System.Drawing.Icon.ExtractAssociatedIcon(exe);
+        }
+        catch { /* use the system fallback below */ }
+
         _nid = new NOTIFYICONDATA
         {
             cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<NOTIFYICONDATA>(),
@@ -74,7 +82,7 @@ internal sealed class TrayIcon : IDisposable
             uID = 1,
             uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
             uCallbackMessage = WM_TRAYICON,
-            hIcon = LoadIconW(IntPtr.Zero, IDI_APPLICATION),
+            hIcon = _appIcon?.Handle ?? LoadIconW(IntPtr.Zero, IDI_APPLICATION),
             szTip = tooltip,
         };
         Shell_NotifyIconW(NIM_ADD, ref _nid);
@@ -197,5 +205,7 @@ internal sealed class TrayIcon : IDisposable
             DestroyWindow(_hwnd);
             _hwnd = IntPtr.Zero;
         }
+        _appIcon?.Dispose();
+        _appIcon = null;
     }
 }

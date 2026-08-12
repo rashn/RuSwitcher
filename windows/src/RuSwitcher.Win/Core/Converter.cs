@@ -11,6 +11,7 @@ namespace RuSwitcher.Win.Core;
 /// </summary>
 internal static class Converter
 {
+    public static string LastDiagnostic { get; private set; } = "";
     // Last conversion, for reconvert. "_a" is what's currently on screen; "_b" is the alternative.
     // Each side carries its layout so reconvert also restores the right keyboard layout.
     private static string _aText = "";
@@ -43,10 +44,11 @@ internal static class Converter
     /// <summary>Convert the buffered word into the opposite layout. Returns true if it acted.</summary>
     public static bool ConvertLastWord(KeystrokeBuffer buffer)
     {
-        if (buffer.IsEmpty) return false;
+        LastDiagnostic = "";
+        if (buffer.IsEmpty) { LastDiagnostic = "word buffer is empty"; return false; }
 
         IntPtr sourceHkl = LayoutSwitcher.Current();
-        if (LayoutSwitcher.Opposite() is not { } targetHkl) return false;
+        if (LayoutSwitcher.Opposite() is not { } targetHkl) { LastDiagnostic = "no opposite layout"; return false; }
 
         // Split off trailing real punctuation (kept as typed).
         var keys = buffer.CurrentWord;
@@ -58,20 +60,24 @@ internal static class Converter
             suffix.Insert(0, pc);
             coreCount--;
         }
-        if (coreCount == 0) return false;   // nothing but punctuation
+        if (coreCount == 0) { LastDiagnostic = "word contains only punctuation"; return false; }
 
         var core = new List<TypedKey>(coreCount);
         for (int i = 0; i < coreCount; i++) core.Add(keys[i]);
         string suf = suffix.ToString();
 
         string convertedCore = KeyMapper.ConvertWord(core, targetHkl);
-        if (convertedCore.Length == 0) return false;
+        if (convertedCore.Length == 0) { LastDiagnostic = "target layout produced no text"; return false; }
         string originalCore = KeyMapper.ConvertWord(core, sourceHkl);  // as it was typed
 
         string converted = convertedCore + suf;
         string original = originalCore + suf;
 
-        TextInjector.Replace(backspaces: coreCount + suf.Length, text: converted);
+        if (!TextInjector.Replace(backspaces: coreCount + suf.Length, text: converted))
+        {
+            LastDiagnostic = TextInjector.LastDiagnostic;
+            return false;
+        }
         LayoutSwitcher.SwitchTo(targetHkl);
 
         _aText = converted; _aHkl = targetHkl;   // now on screen
@@ -84,7 +90,8 @@ internal static class Converter
     /// <summary>Reverse the last conversion (and toggle for a repeated trigger).</summary>
     public static bool Reconvert()
     {
-        if (_aText.Length == 0) return false;
+        LastDiagnostic = "";
+        if (_aText.Length == 0) { LastDiagnostic = "nothing to reconvert"; return false; }
 
         // Learn-from-undo: reversing an auto-conversion means the user rejected it — remember never to
         // auto-convert that typed word again (mirrors the macOS learn-from-undo).
@@ -100,7 +107,11 @@ internal static class Converter
             _lastWasAuto = false;   // only teach once
         }
 
-        TextInjector.Replace(backspaces: _aText.Length, text: _bText);
+        if (!TextInjector.Replace(backspaces: _aText.Length, text: _bText))
+        {
+            LastDiagnostic = TextInjector.LastDiagnostic;
+            return false;
+        }
         LayoutSwitcher.SwitchTo(_bHkl);
 
         (_aText, _bText) = (_bText, _aText);   // toggle: a third trigger redoes the conversion
@@ -120,7 +131,7 @@ internal static class Converter
 
         string? saved = SafeGetText();
         SafeClear();
-        TextInjector.SendCtrl(VK_C);
+        if (!TextInjector.SendCtrl(VK_C)) { RestoreClipboard(saved); return false; }
         Thread.Sleep(60);                       // let the focused app place the selection on the clipboard
         string sel = SafeGetText() ?? "";
         if (sel.Length == 0) { RestoreClipboard(saved); return false; }   // nothing selected
@@ -131,7 +142,7 @@ internal static class Converter
         if (converted == sel) { RestoreClipboard(saved); return false; }  // no-op
 
         SafeSetText(converted);
-        TextInjector.SendCtrl(VK_V);
+        if (!TextInjector.SendCtrl(VK_V)) { RestoreClipboard(saved); return false; }
         Thread.Sleep(60);                       // let the paste happen before we restore the clipboard
         RestoreClipboard(saved);
         return true;
@@ -142,7 +153,7 @@ internal static class Converter
     /// selection. On a no-op, collapse the selection (End) so the line isn't left highlighted.</summary>
     public static bool ConvertLine(bool smart)
     {
-        TextInjector.SendShift(VK_HOME);   // select from cursor to line start
+        if (!TextInjector.SendShift(VK_HOME)) return false;   // select from cursor to line start
         Thread.Sleep(40);
         bool ok = ConvertSelection(smart);
         if (!ok) TextInjector.SendKey(VK_END);   // drop the selection (go to line end)

@@ -30,6 +30,9 @@ internal static class Program
             return;
         }
 
+        ApplicationConfiguration.Initialize();
+        AutoStart.RefreshIfEnabled();
+
         // Capture crashes to the log instead of dying silently (a tester can then send debug.log).
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         { try { Log("FATAL: " + (e.ExceptionObject as Exception)?.ToString()); } catch { /* ignore */ } };
@@ -40,6 +43,17 @@ internal static class Program
         var buffer = new KeystrokeBuffer();
         bool enabled = true;
         List<TypedKey>? pendingAuto = null;   // word snapshot handed to the message loop for auto-convert
+        void InvalidateBuffer()
+        {
+            pendingAuto = null;
+            buffer.Reset();
+            Converter.ClearReconvert();
+        }
+        bool ShortcutModifierDown() =>
+            (GetAsyncKeyState(VK_CONTROL_STATE) & 0x8000) != 0
+            || (GetAsyncKeyState(VK_MENU) & 0x8000) != 0
+            || (GetAsyncKeyState(VK_LWIN) & 0x8000) != 0
+            || (GetAsyncKeyState(VK_RWIN) & 0x8000) != 0;
 
         // Auto-conversion checks the dictionary on the message loop; warm the COM spell-checker for the
         // actually-installed layout languages now, so the first auto-convert of the session isn't slow.
@@ -65,7 +79,10 @@ internal static class Program
         switchDetector.Triggered += () =>
         {
             if (enabled && settings.SwitchTriggerEnabled && LayoutSwitcher.Opposite() is { } opp)
+            {
                 LayoutSwitcher.SwitchTo(opp);
+                InvalidateBuffer();
+            }
         };
 
         tray.TriggerActivated += () =>
@@ -78,7 +95,7 @@ internal static class Program
             else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(settings.SmartConversion); if (acted) buffer.Reset(); }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
             else acted = Converter.ConvertSelection(settings.SmartConversion);
-            Log($"trigger: acted={acted}");
+            Log($"trigger: acted={acted}" + (acted ? "" : $", reason={Converter.LastDiagnostic}"));
         };
         tray.AutoConvertActivated += () =>
         {
@@ -113,6 +130,17 @@ internal static class Program
             detector.OnKeyDown(vk);
             switchDetector.OnKeyDown(vk);
 
+            if (vk == KeystrokeBuffer.VK_BACK)
+            {
+                if (ShortcutModifierDown()) InvalidateBuffer();
+                else
+                {
+                    buffer.Backspace();
+                    Converter.ClearReconvert();
+                }
+                return;
+            }
+
             if (KeystrokeBuffer.IsWordBoundary(vk))
             {
                 // As-you-type auto conversion (beta): on Space, arm a deferred check. We snapshot the
@@ -130,13 +158,22 @@ internal static class Program
 
             if (KeystrokeBuffer.IsTypingKey(vk))
             {
+                if (ShortcutModifierDown())
+                {
+                    InvalidateBuffer();
+                    return;
+                }
                 Converter.ClearReconvert();  // typing changed the word — the pending undo no longer applies
                 // GetAsyncKeyState = real hardware state; GetKeyState would be stale on the hook thread.
                 bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
                 bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
                 buffer.Append(new TypedKey(vk, sc, shift, caps));
             }
-            // Modifiers and other keys: leave the buffer as-is.
+            else if (KeystrokeBuffer.InvalidatesWord(vk))
+            {
+                InvalidateBuffer();
+            }
+            // Plain modifiers leave the buffer as-is so a double-tap can convert it.
         };
         hook.KeyUp += (vk, sc) =>
         {
@@ -146,8 +183,13 @@ internal static class Program
         };
         hook.Install();
 
+        using var mouseHook = new MouseHook();
+        mouseHook.Clicked += InvalidateBuffer;
+        mouseHook.Install();
+
         // Per-app layout memory (issue): restores each app's last-used layout on focus. Off by default.
         using var appTracker = new AppLayoutTracker();
+        appTracker.ForegroundChanged += InvalidateBuffer;
         appTracker.Install();
 
         Updater.CheckOnLaunch(ui);   // silent, throttled once-a-day, off the startup path
