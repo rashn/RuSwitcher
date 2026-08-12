@@ -185,6 +185,48 @@ internal static class Converter
         return ok;
     }
 
+    /// <summary>Terminals do not expose their editable command line as a normal Windows selection:
+    /// Shift+Home selects rendered cells and Ctrl+C may send ETX instead of copying. Convert the
+    /// line captured by our keyboard hook directly, while the caret is known to remain at its end.</summary>
+    public static bool ConvertBufferedLine(IReadOnlyList<TypedKey> keys, bool smart)
+    {
+        LastDiagnostic = "";
+        if (keys.Count == 0)
+        {
+            LastDiagnostic = "terminal line buffer is empty";
+            return false;
+        }
+
+        IntPtr sourceHkl = LayoutSwitcher.Current();
+        if (LayoutSwitcher.Opposite() is not { } targetHkl)
+        {
+            LastDiagnostic = "no opposite layout";
+            return false;
+        }
+
+        string original = KeyMapper.ConvertWord(keys, sourceHkl);
+        string converted = smart
+            ? SmartConvert.Selection(original, sourceHkl, targetHkl)
+            : KeyMapper.ConvertWord(keys, targetHkl);
+        if (original.Length == 0 || converted == original)
+        {
+            LastDiagnostic = "terminal line conversion is a no-op";
+            return false;
+        }
+
+        if (!TextInjector.Replace(original.Length, converted))
+        {
+            LastDiagnostic = TextInjector.LastDiagnostic;
+            return false;
+        }
+        LayoutSwitcher.SwitchTo(targetHkl);
+
+        _aText = converted; _aHkl = targetHkl;
+        _bText = original; _bHkl = sourceHkl;
+        _lastWasAuto = false;
+        return true;
+    }
+
     // Trim non-letters off both ends and lowercase — the key used for the never-convert exception list.
     private static string LetterCoreLower(string s)
     {

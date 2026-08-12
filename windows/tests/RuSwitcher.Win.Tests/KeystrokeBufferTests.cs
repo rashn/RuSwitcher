@@ -47,6 +47,28 @@ public class KeystrokeBufferTests
 
         b.Reset();
         Assert.True(b.IsEmpty);
+        Assert.True(b.IsLineEmpty);
+    }
+
+    [Fact]
+    public void Line_buffer_keeps_spaces_and_backspace_rebuilds_the_current_word()
+    {
+        var b = new KeystrokeBuffer();
+        var a = new TypedKey(0x41, 0x1E, Shift: false, Caps: false);
+        var space = new TypedKey(KeystrokeBuffer.VK_SPACE, 0x39, Shift: false, Caps: false);
+        var c = new TypedKey(0x43, 0x2E, Shift: false, Caps: false);
+
+        b.Append(a);
+        b.AppendSpace(space);
+        b.Append(c);
+        Assert.Equal(3, b.CurrentLine.Count);
+        Assert.Single(b.CurrentWord);
+
+        b.Backspace();
+        Assert.True(b.IsEmpty);
+        b.Backspace(); // remove space; the previous word becomes current again
+        Assert.Single(b.CurrentWord);
+        Assert.Equal(a, b.CurrentWord[0]);
     }
 
     [Fact]

@@ -32,8 +32,20 @@ internal static class TextInjector
         return Send(arr);
     }
 
-    /// <summary>Send Ctrl+<paramref name="vk"/> (e.g. Ctrl+C / Ctrl+V).</summary>
-    public static bool SendCtrl(ushort vk) => SendChord(VK_CONTROL, vk);
+    /// <summary>Send a copy-style Ctrl chord. Chromium on Windows ARM64 ignores a generic
+    /// VK_CONTROL SendInput chord but accepts the concrete left-Control virtual key. keybd_event is
+    /// deliberately limited to this compatibility fallback; the marker still keeps our hook out.</summary>
+    public static bool SendCtrl(ushort vk)
+    {
+        UIntPtr marker = (UIntPtr)InjectedMarker;
+        byte scan = (byte)MapVirtualKeyExW(vk, MAPVK_VK_TO_VSC, GetKeyboardLayout(0));
+        keybd_event((byte)VK_LCONTROL, 0x1D, KEYEVENTF_EXTENDEDKEY, marker);
+        keybd_event((byte)vk, scan, 0, marker);
+        keybd_event((byte)vk, scan, KEYEVENTF_KEYUP, marker);
+        keybd_event((byte)VK_LCONTROL, 0x1D, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, marker);
+        LastDiagnostic = "";
+        return true;
+    }
 
     /// <summary>Send Shift+<paramref name="vk"/> (e.g. Shift+Home to select to line start).</summary>
     public static bool SendShift(ushort vk) => SendChord((ushort)VK_SHIFT, vk);
@@ -42,10 +54,12 @@ internal static class TextInjector
     public static bool SendKey(ushort vk)
     {
         uint flags = ExtendedFlag(vk);
-        VirtualKey(vk, flags);
-        VirtualKey(vk, flags | KEYEVENTF_KEYUP);
-        LastDiagnostic = "";
-        return true;
+        var inputs = new[]
+        {
+            Key(vk, '\0', dwFlags: flags),
+            Key(vk, '\0', dwFlags: flags | KEYEVENTF_KEYUP),
+        };
+        return Send(inputs);
     }
 
     /// <summary>Wait until the physical trigger chord is fully released. Injecting another chord
@@ -71,16 +85,15 @@ internal static class TextInjector
     private static bool SendChord(ushort modVk, ushort vk)
     {
         uint flags = ExtendedFlag(vk);
-        VirtualKey(modVk, 0);
-        VirtualKey(vk, flags);
-        VirtualKey(vk, flags | KEYEVENTF_KEYUP);
-        VirtualKey(modVk, KEYEVENTF_KEYUP);
-        LastDiagnostic = "";
-        return true;
+        var inputs = new[]
+        {
+            Key(modVk, '\0', dwFlags: 0),
+            Key(vk, '\0', dwFlags: flags),
+            Key(vk, '\0', dwFlags: flags | KEYEVENTF_KEYUP),
+            Key(modVk, '\0', dwFlags: KEYEVENTF_KEYUP),
+        };
+        return Send(inputs);
     }
-
-    private static void VirtualKey(ushort vk, uint flags) =>
-        keybd_event((byte)vk, 0, flags, (UIntPtr)InjectedMarker);
 
     private static uint ExtendedFlag(ushort vk) => vk is
         0x21 or 0x22 or 0x23 or 0x24 or // PageUp, PageDown, End, Home

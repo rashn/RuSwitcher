@@ -43,7 +43,8 @@ internal sealed class ClipboardSnapshot
         text = "";
         diagnostic = "";
         TextInjector.WaitForPhysicalModifiersReleased();
-        if (!RetryAction(Clipboard.Clear))
+        IntPtr foregroundAtStart = GetForegroundWindow();
+        if (!ClearForCopy())
         {
             diagnostic = "clipboard is busy";
             return false;
@@ -51,18 +52,26 @@ internal sealed class ClipboardSnapshot
 
         uint clearedAt = GetClipboardSequenceNumber();
 
-        // Standard Win32/WinForms/WPF/Office controls support WM_COPY directly. It avoids racing
-        // the user's trigger Ctrl key and is the most deterministic path when a focused HWND exists.
-        SendCopyToFocusedControl();
-        if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 180, out text)) return true;
-
-        // Chromium/Electron and custom editors may ignore WM_COPY, so retain real Ctrl+C fallback.
-        if (!RetryAction(Clipboard.Clear))
+        // Standard Win32/WinForms/WPF/Office controls support WM_COPY directly. Chromium/Electron
+        // editors do not: sending WM_COPY first can suppress the following keyboard copy, so those
+        // apps go straight to their concrete left-Ctrl+C fallback.
+        bool keyboardCopy = AppCompatibility.UsesKeyboardCopyForeground();
+        if (!keyboardCopy)
         {
-            diagnostic = "clipboard became busy before Ctrl+C fallback";
-            return false;
+            SendCopyToFocusedControl();
+            if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 180, out text)) return true;
+            // Remove any partial/delayed WM_COPY ownership before the keyboard fallback.
+            if (!ClearForCopy())
+            {
+                diagnostic = "clipboard became busy before Ctrl+C fallback";
+                return false;
+            }
+            clearedAt = GetClipboardSequenceNumber();
         }
-        clearedAt = GetClipboardSequenceNumber();
+
+        // Chromium/Electron go straight from the first clear to a concrete left Ctrl+C. Clearing
+        // twice without an intervening owner change makes some Chromium builds ignore the copy.
+        IntPtr foregroundAtFallback = GetForegroundWindow();
         if (!TextInjector.SendCtrl(VK_C))
         {
             diagnostic = TextInjector.LastDiagnostic;
@@ -71,7 +80,12 @@ internal sealed class ClipboardSnapshot
 
         if (WaitForCopiedText(clearedAt, Environment.TickCount64 + 800, out text)) return true;
 
-        diagnostic = "selection did not publish text to the clipboard";
+        uint finalSequence = GetClipboardSequenceNumber();
+        string formats;
+        try { formats = string.Join(",", Clipboard.GetDataObject()?.GetFormats(false) ?? Array.Empty<string>()); }
+        catch { formats = "busy"; }
+        diagnostic = $"selection did not publish text to the clipboard " +
+            $"(seq {clearedAt}->{finalSequence}, hwnd {foregroundAtStart:X}->{foregroundAtFallback:X}, formats={formats})";
         return false;
     }
 
@@ -159,6 +173,23 @@ internal sealed class ClipboardSnapshot
         {
             try { action(); return true; }
             catch (ExternalException) { Thread.Sleep(15 + i * 10); }
+        }
+        return false;
+    }
+
+    /// <summary>Release clipboard ownership immediately. WinForms Clipboard.Clear uses OLE and can
+    /// keep ownership until the STA returns to its message loop; Chromium copies asynchronously and
+    /// cannot replace that owner while conversion is synchronously waiting for it.</summary>
+    private static bool ClearForCopy(int attempts = 8)
+    {
+        for (int i = 0; i < attempts; i++)
+        {
+            if (OpenClipboard(IntPtr.Zero))
+            {
+                try { return EmptyClipboard(); }
+                finally { CloseClipboard(); }
+            }
+            Thread.Sleep(15 + i * 10);
         }
         return false;
     }

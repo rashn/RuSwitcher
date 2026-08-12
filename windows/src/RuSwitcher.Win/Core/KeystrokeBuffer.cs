@@ -11,16 +11,45 @@ public readonly record struct TypedKey(uint VkCode, uint ScanCode, bool Shift, b
 public sealed class KeystrokeBuffer
 {
     private readonly List<TypedKey> _current = new();
+    private readonly List<TypedKey> _line = new();
 
     public IReadOnlyList<TypedKey> CurrentWord => _current;
+    public IReadOnlyList<TypedKey> CurrentLine => _line;
     public bool IsEmpty => _current.Count == 0;
+    public bool IsLineEmpty => _line.Count == 0;
 
-    public void Append(TypedKey key) => _current.Add(key);
+    public void Append(TypedKey key)
+    {
+        _current.Add(key);
+        _line.Add(key);
+    }
+
+    /// <summary>Keep a typed space in the current-line buffer while starting a new word.</summary>
+    public void AppendSpace(TypedKey key)
+    {
+        _line.Add(key);
+        _current.Clear();
+    }
+
     public void Backspace()
     {
-        if (_current.Count > 0) _current.RemoveAt(_current.Count - 1);
+        if (_line.Count == 0) return;
+        _line.RemoveAt(_line.Count - 1);
+        RebuildCurrentWord();
     }
-    public void Reset() => _current.Clear();
+    public void Reset()
+    {
+        _current.Clear();
+        _line.Clear();
+    }
+
+    private void RebuildCurrentWord()
+    {
+        _current.Clear();
+        int start = _line.Count;
+        while (start > 0 && _line[start - 1].VkCode != VK_SPACE) start--;
+        for (int i = start; i < _line.Count; i++) _current.Add(_line[i]);
+    }
 
     /// <summary>Keys that end a word (and clear the buffer): space, Enter, Tab, Esc.</summary>
     public static bool IsWordBoundary(uint vkCode) =>

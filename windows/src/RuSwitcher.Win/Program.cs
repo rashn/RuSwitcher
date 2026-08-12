@@ -92,7 +92,13 @@ internal static class Program
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
             bool acted;
             if (Converter.CanReconvert && buffer.IsEmpty) acted = Converter.Reconvert();
-            else if (settings.ConvertWholeLine) { acted = Converter.ConvertLine(settings.SmartConversion); if (acted) buffer.Reset(); }
+            else if (settings.ConvertWholeLine)
+            {
+                acted = AppCompatibility.IsTerminalForeground()
+                    ? Converter.ConvertBufferedLine(buffer.CurrentLine, settings.SmartConversion)
+                    : Converter.ConvertLine(settings.SmartConversion);
+                if (acted) buffer.Reset();
+            }
             else if (!buffer.IsEmpty) acted = Converter.ConvertLastWord(buffer);
             else acted = Converter.ConvertSelection(settings.SmartConversion);
             Log($"trigger: acted={acted}" + (acted ? "" : $", reason={Converter.LastDiagnostic}"));
@@ -101,7 +107,12 @@ internal static class Program
         {
             // Deferred off the hook callback: the real Space has already landed, so TryConvertWord
             // deletes the word + that space and re-types the converted word + space (or keeps it).
-            if (pendingAuto is { } w) { AutoConverter.TryConvertWord(w); pendingAuto = null; }
+            if (pendingAuto is { } w)
+            {
+                AutoConverter.TryConvertWord(w);
+                pendingAuto = null;
+                buffer.Reset(); // auto retyped text no longer matches the captured physical line
+            }
         };
         tray.EnabledChanged += on => { enabled = on; Log($"enabled = {on}"); };
         tray.TriggerChanged += kind => { detector.Kind = kind; Log($"trigger set: {kind}"); };  // Settings written by the tray
@@ -152,7 +163,13 @@ internal static class Program
                     pendingAuto = new List<TypedKey>(buffer.CurrentWord);
                     tray.PostAutoConvert();
                 }
-                buffer.Reset();
+                if (vk == KeystrokeBuffer.VK_SPACE)
+                {
+                    bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
+                    bool caps = (GetKeyState(VK_CAPITAL) & 0x0001) != 0;
+                    buffer.AppendSpace(new TypedKey(vk, sc, shift, caps));
+                }
+                else buffer.Reset();
                 return;
             }
 

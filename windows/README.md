@@ -1,6 +1,6 @@
 # RuSwitcher for Windows
 
-**Status: 0.9.2 beta.** A tray application built on the same philosophy as the macOS original —
+**Status: 0.9.2 beta 2.** A tray application built on the same philosophy as the macOS original —
 zero external dependencies, no telemetry, local dictionaries, keycode-based conversion.
 
 ## Features (parity with the macOS version)
@@ -8,7 +8,8 @@ zero external dependencies, no telemetry, local dictionaries, keycode-based conv
 - **Manual trigger** — double-tap Ctrl (default), double-tap Shift, or the Pause/Break key.
   Converts the last typed word, the current selection, or the whole line into the other layout,
   and switches the keyboard. Trigger it again with nothing typed since to reverse (toggle).
-- **Whole-line conversion** (issue #24) — convert the entire current line, not just the last word.
+- **Whole-line conversion** (issue #24) — convert the entire current line, not just the last word,
+  including a keyboard-buffer fallback for Windows Terminal and other console hosts.
 - **Smart selection conversion** (issue #22) — keeps words that are already correct, flips only the
   gibberish (dictionary-driven).
 - **Trailing punctuation** kept literally (issue #15) — `ghbdtn,` → `привет,`.
@@ -21,6 +22,10 @@ zero external dependencies, no telemetry, local dictionaries, keycode-based conv
 - **Layout sound** (issue #7) and a **layout indicator** in the tray menu.
 - **Launch at startup**, **auto-update check**, and a settings window.
 - **Localized UI** — English and Russian (more languages to follow; falls back to English).
+
+The ARM64 compatibility matrix currently includes modern Notepad, Google Chrome, Microsoft Edge,
+standard WinForms fields and Windows Terminal. Chromium/Electron editors use a keyboard-copy path;
+normal document controls continue to use the deterministic native copy message.
 
 ## Engine mapping
 

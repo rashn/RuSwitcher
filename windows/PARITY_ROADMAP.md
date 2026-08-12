@@ -36,8 +36,11 @@ counterpart exists.
 - Selection and whole-line conversion verified end to end in standard Windows text fields on ARM64.
 - Preserve all clipboard formats, not only text (verified with Unicode text plus a custom format).
 - Persisted settings now load correctly after restart; the previous initializer order silently reset them.
-- Notepad, Office, browser/Electron and terminal compatibility remain active matrix items.
-- Add safe fallbacks per application class and visible failure feedback.
+- Modern Notepad, Chrome, Edge and Windows Terminal verified end to end on ARM64.
+- Chromium/Electron controls bypass unsupported `WM_COPY`; terminal whole-line mode converts the
+  keyboard-hook line buffer instead of sending terminal control sequences.
+- Office and standalone Electron applications remain active matrix items.
+- Add safe fallbacks per application class and actionable failure diagnostics.
 - Regression scenarios for punctuation, mixed text and protected/elevated windows.
 
 ### 0.9.3 beta — layout control

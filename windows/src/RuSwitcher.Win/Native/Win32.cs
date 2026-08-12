@@ -82,6 +82,18 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern uint GetClipboardSequenceNumber();
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool OpenClipboard(IntPtr hWndNewOwner);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EmptyClipboard();
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool CloseClipboard();
+
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT { public int Left, Top, Right, Bottom; }
 
@@ -250,8 +262,6 @@ internal static class Win32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
-    // Compatible virtual-key chord path on Windows ARM64. dwExtraInfo carries our marker so the
-    // low-level hook ignores these synthetic events just as it ignores SendInput events.
     [DllImport("user32.dll")]
     public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 

@@ -29,7 +29,7 @@
     <LangVersion>latest</LangVersion>
     <Platforms>x64;ARM64</Platforms>
     <!-- Windows track starts pre-1.0 (beta). Keep in sync with windows/version.json. -->
-    <Version>0.9.2-beta.1</Version>
+    <Version>0.9.2-beta.2</Version>
   </PropertyGroup>
 
   <ItemGroup>
