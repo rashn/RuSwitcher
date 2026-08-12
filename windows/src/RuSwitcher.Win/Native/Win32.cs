@@ -19,6 +19,8 @@ internal static class Win32
     public const int WM_MBUTTONDOWN = 0x0207;
     public const uint WM_COPY = 0x0301;
     public const uint SMTO_ABORTIFHUNG = 0x0002;
+    public const int GWL_STYLE = -16;
+    public const int ES_PASSWORD = 0x0020;
 
     // Marker written into the dwExtraInfo of our own injected events, so the hook can
     // ignore them (the Windows counterpart of the macOS kRuSwitcherEventMarker userData).
@@ -114,6 +116,9 @@ internal static class Win32
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetGUIThreadInfo(uint idThread, ref GUITHREADINFO lpgui);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern int GetWindowLongW(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     public static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam,

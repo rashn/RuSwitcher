@@ -4,6 +4,13 @@ The macOS application is the behavioural reference. Windows releases should copy
 behaviour in small, testable slices; a feature is not considered parity merely because a Win32
 counterpart exists.
 
+## Architecture and size constraint
+
+The final Windows client is a native Win32 x64/ARM64 executable with no bundled framework/runtime.
+The standalone release exe has a hard 5 MiB CI budget (preferred 1–2 MiB). The current C# app remains
+the working behavioural beta while scenarios are migrated to `windows/native`; a deceptively small
+framework-dependent launcher that requires a separate .NET Desktop Runtime is not the final design.
+
 ## macOS capability map
 
 | Area | macOS reference behaviour | Windows status before 0.9.1 |

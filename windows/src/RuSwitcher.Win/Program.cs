@@ -91,6 +91,13 @@ internal static class Program
             int wordKeys = buffer.CurrentWord.Count;
             int lineKeys = buffer.CurrentLine.Count;
             string app = TriggerRouting.ForegroundProcessName();
+            if (InputSafety.IsProtectedForeground())
+            {
+                InvalidateBuffer();
+                Log($"trigger: acted=False, app={app}, wordKeys={wordKeys}, lineKeys={lineKeys}, " +
+                    "reason=protected/password field");
+                return;
+            }
             // Trigger again with nothing typed since = reverse the last conversion (toggle);
             // else whole-line mode → convert the line; else convert the typed word; else the selection.
             TriggerAction action = TriggerRouting.Decide(settings.ConvertWholeLine,

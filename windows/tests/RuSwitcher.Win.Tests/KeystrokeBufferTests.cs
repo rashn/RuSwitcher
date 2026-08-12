@@ -95,4 +95,19 @@ public class KeystrokeBufferTests
     [InlineData(0x2E)] // Delete
     public void Caret_and_editing_keys_invalidate_the_word(uint vk) =>
         Assert.True(KeystrokeBuffer.InvalidatesWord(vk));
+
+    [Fact]
+    public void Caret_move_reset_discards_both_word_and_line_history()
+    {
+        var b = new KeystrokeBuffer();
+        b.Append(new TypedKey(0x47, 0x22, Shift: false, Caps: false));
+        b.AppendSpace(new TypedKey(KeystrokeBuffer.VK_SPACE, 0x39, Shift: false, Caps: false));
+        b.Append(new TypedKey(0x48, 0x23, Shift: false, Caps: false));
+
+        Assert.True(KeystrokeBuffer.InvalidatesWord(KeystrokeBuffer.VK_LEFT));
+        b.Reset(); // Program performs this on caret keys and mouse clicks.
+
+        Assert.True(b.IsEmpty);
+        Assert.True(b.IsLineEmpty);
+    }
 }

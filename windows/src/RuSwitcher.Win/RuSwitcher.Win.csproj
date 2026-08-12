@@ -37,4 +37,16 @@
     <InternalsVisibleTo Include="RuSwitcher.Win.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Read only the focused element's IsPassword capability. No text/value is requested. -->
+    <Reference Include="UIAutomationClient">
+      <HintPath>$(windir)\Microsoft.NET\assembly\GAC_MSIL\UIAutomationClient\v4.0_4.0.0.0__31bf3856ad364e35\UIAutomationClient.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UIAutomationTypes">
+      <HintPath>$(windir)\Microsoft.NET\assembly\GAC_MSIL\UIAutomationTypes\v4.0_4.0.0.0__31bf3856ad364e35\UIAutomationTypes.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
 </Project>

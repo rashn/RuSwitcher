@@ -5,16 +5,36 @@ name: windows-build
 # flagged that pushes were never compile-checked).
 on:
   push:
-    branches: [wip/windows, main]
+    branches: [wip/windows, windows-port, main]
     paths:
       - 'windows/**'
+      - 'scripts/check_windows_binary_size.ps1'
       - '.github/workflows/windows-build.yml'
   pull_request:
     paths:
       - 'windows/**'
+      - 'scripts/check_windows_binary_size.ps1'
   workflow_dispatch:
 
 jobs:
+  native-size:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        architecture: [x64, ARM64]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure compact native target
+        run: cmake -S windows/native -B build/native-${{ matrix.architecture }} -A ${{ matrix.architecture }}
+      - name: Build compact native target
+        run: cmake --build build/native-${{ matrix.architecture }} --config Release
+      - name: Enforce standalone executable budget
+        shell: pwsh
+        run: >
+          pwsh -NoProfile -ExecutionPolicy Bypass
+          -File scripts/check_windows_binary_size.ps1
+          build/native-${{ matrix.architecture }}/Release/RuSwitcher.exe -MaximumMiB 5
+
   build:
     runs-on: windows-latest
     steps:

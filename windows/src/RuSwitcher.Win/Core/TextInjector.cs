@@ -15,6 +15,11 @@ internal static class TextInjector
 
     public static bool Replace(int backspaces, string text)
     {
+        if (InputSafety.IsProtectedForeground())
+        {
+            LastDiagnostic = "protected/password field";
+            return false;
+        }
         var inputs = new List<INPUT>(backspaces * 2 + text.Length * 2);
 
         for (int i = 0; i < backspaces; i++)

@@ -42,6 +42,11 @@ internal sealed class ClipboardSnapshot
     {
         text = "";
         diagnostic = "";
+        if (InputSafety.IsProtectedForeground())
+        {
+            diagnostic = "protected/password field";
+            return false;
+        }
         TextInjector.WaitForPhysicalModifiersReleased();
         IntPtr foregroundAtStart = GetForegroundWindow();
         if (!ClearForCopy())
