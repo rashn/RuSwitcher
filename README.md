@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <b>Lightweight keyboard layout switcher for macOS</b><br>
+  <b>Lightweight keyboard layout switcher for macOS and Windows</b><br>
   Free and open-source alternative to PuntoSwitcher
 </p>
 
 <p align="center">
-  <sub>macOS app lives in <a href="macos/">macos/</a> · Windows version is <a href="windows/">planned</a> · cross-platform behaviour contract in <a href="shared/">shared/</a></sub>
+  <sub>macOS app lives in <a href="macos/">macos/</a> · the native Windows beta is under active development in <a href="windows/">windows/</a> · cross-platform behaviour contract in <a href="shared/">shared/</a></sub>
 </p>
 
 <p align="center">
