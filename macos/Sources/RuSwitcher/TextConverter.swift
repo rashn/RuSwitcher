@@ -154,15 +154,22 @@ final class TextConverter {
     func convertLineTail(lineKeys: [TypedKey], tailLength: Int, tailConverted: String,
                          toCyrillic: Bool) -> Bool {
         guard !isConverting, tailLength > 0, lineKeys.count > tailLength else { return false }
-        // Длинную строку не переписываем: чем больше стираем, тем заметнее моргание и тем
-        // дороже ошибка, если буфер разошёлся с полем. Фраза до этого предела покрывает
-        // случай, ради которого всё затевалось, — начало предложения не в той раскладке.
-        guard lineKeys.count <= 64 else { return false }
+        // Сколько текста вообще позволено переписать. Ограничения жёсткие и намеренно
+        // консервативные: 19.08 ложное срабатывание утащило 25 символов готовой фразы, и урок
+        // тут не только в детекторе — цена ЛЮБОЙ ошибки должна быть маленькой. Починка хвоста
+        // нужна для начала фразы, набранного не в той раскладке, а это два-три слова; всё
+        // остальное лучше отдать однословной замене.
+        guard lineKeys.count <= 32 else { return false }
         guard let line = DynamicKeyMapping.lineString(from: lineKeys), line.count == lineKeys.count,
               line.count > tailLength else { return false }   // счёт разошёлся (dead-key/графемы) — не рискуем
 
         let head = String(line.dropLast(tailLength))
-        let headFixed = SmartConvert.lineTail(head, toCyrillic: toCyrillic)
+        guard head.split(separator: " ").count <= 3 else {
+            rslog("instant: line tail bail — голова длиннее трёх слов")
+            return false
+        }
+        // nil — SmartConvert отказался (в голове словарное слово либо пара не Lat+Cyr).
+        guard let headFixed = SmartConvert.lineTail(head, toCyrillic: toCyrillic) else { return false }
         // Голова уже верная (человек писал по-русски и только последнее слово ушло в другую
         // раскладку) — незачем стирать всю строку, хватит однословной замены.
         guard headFixed != head, headFixed.count == head.count else { return false }

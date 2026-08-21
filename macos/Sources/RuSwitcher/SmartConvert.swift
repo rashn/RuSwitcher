@@ -19,7 +19,9 @@ import Foundation
 /// (DynamicKeyMapping.convertBidirectional). Пары не «латиница+кириллица» — обычный путь.
 enum SmartConvert {
     private enum Script { case cyr, lat, other, mixed }
-    private enum WordDecision { case keep, flip(String, Script), unresolved }
+    /// keepValid — слово ПОДТВЕРЖДЕНО словарём своего языка (не просто «не трогаем»). Отдельно
+    /// от .keep, потому что для хвоста фразы это стоп-сигнал: см. lineTail.
+    private enum WordDecision { case keep, keepValid, flip(String, Script), unresolved }
 
     // Частотные однобуквенные слова — доп. страховка для флипа ОДИНОЧНЫХ букв по сигналу.
     private static let cyr1: Set<Character> = ["я", "в", "с", "к", "о", "у", "а", "и"]
@@ -42,14 +44,42 @@ enum SmartConvert {
     /// когда весь остальной хвост словарь подтвердить не смог — ровно случай «dj gfitn»,
     /// где «gfitn» опознано как «пашет», а «dj» само по себе честное английское слово.
     ///
-    /// Текст ВОЗВРАЩАЕТСЯ КАК ЕСТЬ, если пара раскладок не «латиница+кириллица»: здесь чинится
-    /// уже набранный текст пользователя, и тотальный флип вслепую (как в selection) испортил бы
-    /// его сильнее, чем оставленная неконвертированной фраза.
+    /// nil — «не трогать голову»: вызывающий тогда заменяет только текущее слово.
+    ///
+    /// ДОПУСК ГОЛОВЫ (боевая находка 19.08). Правим голову, только если КАЖДОЕ её слово —
+    /// заведомый мусор: либо словарь подтверждает флип, либо слово короче трёх букв (там словарь
+    /// и так не судья), либо это пунктуация с цифрами. Одно слово, подтверждённое словарём
+    /// своего языка, или одно неразрешённое длинное (имя, бренд, термин) — отказ целиком.
+    ///
+    /// Ради чего так строго: ложное срабатывание на двух буквах уносило с собой уже набранную
+    /// верную фразу. Длинные слова словарь отстаивал сам, а вот короткие («и», «в», «не»)
+    /// дотягивались по заданному направлению и превращались в латинский мусор — 25 символов
+    /// готового текста за один раз, дважды. Ради «dj gfitn» правило не мешает: там в голове
+    /// одно двухбуквенное слово, подтверждать нечего.
     @MainActor
-    static func lineTail(_ text: String, toCyrillic: Bool) -> String {
+    static func lineTail(_ text: String, toCyrillic: Bool) -> String? {
         guard let (latLang, cyrLang) = classifyPair(),
-              Dict.isAvailable(latLang), Dict.isAvailable(cyrLang) else { return text }
+              Dict.isAvailable(latLang), Dict.isAvailable(cyrLang) else { return nil }
+        guard headIsGarbage(text, latLang: latLang, cyrLang: cyrLang) else { return nil }
         return run(text, latLang: latLang, cyrLang: cyrLang, forcedTarget: toCyrillic ? .cyr : .lat)
+    }
+
+    /// Целиком ли голова состоит из мусора — можно ли её переписывать (см. допуск в lineTail).
+    @MainActor
+    private static func headIsGarbage(_ text: String, latLang: String, cyrLang: String) -> Bool {
+        for tok in tokenize(text) where tok.isWord {
+            switch decideWord(tok.str, latLang: latLang, cyrLang: cyrLang, forcedTarget: nil) {
+            case .keepValid:
+                rslog("instant: line tail bail — в голове словарное слово")
+                return false
+            case .unresolved where letterCore(tok.str).count >= 3:
+                rslog("instant: line tail bail — в голове нераспознанное слово")
+                return false   // имя/бренд/термин: словарь его флип не подтвердил, не трогаем
+            default:
+                continue       // мусор с подтверждённым флипом, короткое слово, пунктуация
+            }
+        }
+        return true
     }
 
     /// Кириллический ли язык (нужно вызывающему, чтобы задать направление lineTail).
@@ -67,7 +97,7 @@ enum SmartConvert {
         for (i, tok) in toks.enumerated() {
             guard tok.isWord else { results[i] = tok.str; continue }
             switch decideWord(tok.str, latLang: latLang, cyrLang: cyrLang, forcedTarget: forcedTarget) {
-            case .keep:
+            case .keep, .keepValid:
                 results[i] = tok.str
             case let .flip(s, toScript):
                 results[i] = s
@@ -127,7 +157,7 @@ enum SmartConvert {
         }
 
         // 3+ — словарь. Уже валидное слово своего языка → не трогаем (iPhone, стоит).
-        if Dict.isValidWord(core.lowercased(), lang: wordLang) { return .keep }
+        if Dict.isValidWord(core.lowercased(), lang: wordLang) { return .keepValid }
         // (1) флип целиком — ловит «ёлка» (`krf), «делю» (ltk.), «продолжение».
         let whole = DynamicKeyMapping.convertBidirectional(w)
         let wc = letterCore(whole)

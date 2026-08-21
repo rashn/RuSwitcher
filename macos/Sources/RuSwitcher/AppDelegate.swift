@@ -43,6 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Task { @MainActor in
                 Dict.warmUp()
                 InstantDetector.warmUp()
+                // Языковые паки для конверсии на лету: в бинаре данных нет, поэтому если фича
+                // включена — досматриваем, что паки на месте и не устарели. Сверка с манифестом
+                // троттлится сутками, так что обычный запуск в сеть не ходит.
+                if SettingsManager.shared.instantConvert,
+                   let langs = InstantTablesUpdater.languagesForCurrentPair() {
+                    InstantTablesUpdater.ensurePacks(for: langs, force: false)
+                }
             }
         }
     }

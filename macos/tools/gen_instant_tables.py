@@ -1,28 +1,44 @@
 #!/usr/bin/env python3
-"""Генератор таблиц для конверсии на лету (InstantDetector).
+"""Генератор языковых паков для конверсии на лету (InstantDetector).
 
-Делает два Swift-файла в Sources/RuSwitcher/:
-  NGramTables.swift   — битовые маски допустимых триграмм (с маркером начала слова)
-  WordPrefixes.swift  — Bloom-фильтры начал реальных слов (префиксы длиной до 5)
+Один пак = один ЯЗЫК, не пара: детектор берёт две языковые таблицы и сравнивает
+«невозможно в своём / правдоподобно в чужом». Поэтому скачанные ru+en дают пару
+ru↔en, а добавленный третий язык — сразу все пары с ним, без отдельной генерации.
+
+Кладёт в dist/instant-tables/:
+  <lang>.pack     — бинарь: маска допустимых триграмм + Bloom начал слов
+  manifest.json   — индекс языков (версия, размер, sha256, имя файла)
+
+Приложение данные с собой не возит: паки скачиваются по включению настройки,
+проверяются по sha256 из манифеста и кэшируются в Application Support.
 
 Корпус: hermitdave/FrequencyWords, OpenSubtitles-2018, top-50k слов на язык.
     curl -sL -o /tmp/ru_freq.txt https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/ru/ru_50k.txt
     curl -sL -o /tmp/en_freq.txt https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/en/en_50k.txt
     python3 macos/tools/gen_instant_tables.py
 
-Пороги и параметры подбирались по замерам на самом корпусе (отложенные 20% слов +
-словарь Вебстера /usr/share/dict/web2 как «редкие слова»): комбинация двух моделей
-даёт ~0.1% ложных на редких словах при отлове ~75% в среднем на 2,5-й букве.
-"""
-import base64, collections, textwrap, os
+Новый язык: добавить запись в LANGUAGES (код, алфавит, путь к частотному списку) и
+перегенерировать — правки приложения не нужны, оно читает алфавит и параметры из пака.
 
-RU = "абвгдеёжзийклмнопрстуфхцчшщъыьэюя"
-EN = "abcdefghijklmnopqrstuvwxyz"
+Пороги подбирались по замерам на самом корпусе (учили на 80%, ложные считали на
+отложенных 20% и на словаре Вебстера как «редкие слова»): комбинация двух моделей
+даёт 0,14% ложных при отлове ~75% в среднем на 2,5-й букве.
+"""
+import collections, hashlib, json, os, struct
+
 TRIGRAM_THRESHOLD = 1e-7   # доля от корпуса, ниже которой сочетание считаем невозможным
 PREFIX_MAXLEN = 5          # длиннее не храним: там уже хватает статистики сочетаний
-BLOOM_BITS_PER_ITEM = 10   # ≈0.8% ложноположительных при k=7
+BLOOM_BITS_PER_ITEM = 10   # ≈0,8% ложноположительных при k=7
 BLOOM_K = 7
-OUT = os.path.join(os.path.dirname(__file__), "..", "Sources", "RuSwitcher")
+PACK_MAGIC = b"RSIT"       # RuSwitcher Instant Tables
+PACK_FORMAT = 1
+TABLES_VERSION = 1         # растёт при смене корпуса/порогов — приложение перекачает пак
+
+LANGUAGES = {
+    "ru": {"alphabet": "абвгдеёжзийклмнопрстуфхцчшщъыьэюя", "corpus": "/tmp/ru_freq.txt"},
+    "en": {"alphabet": "abcdefghijklmnopqrstuvwxyz",        "corpus": "/tmp/en_freq.txt"},
+}
+OUT = os.path.join(os.path.dirname(__file__), "..", "..", "dist", "instant-tables")
 
 
 def load(path, alphabet):
@@ -91,168 +107,43 @@ def encode_bloom(items):
     return bytes(bits), m
 
 
-def wrap(b):
-    return "\n".join("    " + l for l in textwrap.wrap(base64.b64encode(b).decode(), 96))
+def build_pack(lang, alphabet, words):
+    """Бинарь пака. Всё, что нужно для чтения (алфавит, параметры Bloom), лежит внутри —
+    приложение не знает про языки заранее и не требует правок под новый пак."""
+    ngram = encode_trigrams(build_trigrams(words), alphabet)
+    bloom, m = encode_bloom(build_prefixes(words))
+    lang_b, alpha_b = lang.encode("utf-8"), alphabet.encode("utf-8")
+    out = bytearray()
+    out += PACK_MAGIC
+    out += struct.pack("<BB", PACK_FORMAT, TABLES_VERSION)
+    out += struct.pack("<B", len(lang_b)) + lang_b
+    out += struct.pack("<H", len(alpha_b)) + alpha_b
+    out += struct.pack("<I", len(ngram)) + ngram
+    out += struct.pack("<IBB", m, BLOOM_K, PREFIX_MAXLEN)
+    out += struct.pack("<I", len(bloom)) + bloom
+    return bytes(out)
 
 
 def main():
-    ru_words = load("/tmp/ru_freq.txt", RU)
-    en_words = load("/tmp/en_freq.txt", EN)
-    ru_tri = encode_trigrams(build_trigrams(ru_words), RU)
-    en_tri = encode_trigrams(build_trigrams(en_words), EN)
-    ru_pref, ru_m = encode_bloom(build_prefixes(ru_words))
-    en_pref, en_m = encode_bloom(build_prefixes(en_words))
-
-    ngram = f'''import Foundation
-
-/// Таблицы допустимых буквосочетаний (триграмм с маркером начала слова «^») для русского
-/// и английского. СГЕНЕРИРОВАНО `macos/tools/gen_instant_tables.py` по частотному корпусу
-/// OpenSubtitles-2018 (hermitdave/FrequencyWords, 50k слов на язык); порог — суммарная
-/// взвешенная частота сочетания ≥ {TRIGRAM_THRESHOLD:g} от корпуса: он отсекает опечатки и
-/// иноязычный мусор корпуса, сохраняя живые редкие сочетания. Руками не править.
-///
-/// Формат: битовая маска, индекс = c0*N² + c1*N + c2, где N = алфавит+1, код 0 — «начало слова».
-/// Размер: ru {len(ru_tri)} Б, en {len(en_tri)} Б — проверка сочетания это сдвиг и AND, никакого
-/// словаря и никакого XPC (в отличие от NSSpellChecker), поэтому детект можно гнать на каждую
-/// нажатую букву, не рискуя фризом event tap.
-enum NGramTables {{
-    static let ruAlphabet = Array("{RU}")
-    static let enAlphabet = Array("{EN}")
-
-    static let ru = NGramSet(alphabet: ruAlphabet, base64: ruBase64)
-    static let en = NGramSet(alphabet: enAlphabet, base64: enBase64)
-
-    private static let ruBase64 = """
-{wrap(ru_tri)}
-    """
-
-    private static let enBase64 = """
-{wrap(en_tri)}
-    """
-}}
-
-/// Битовая маска допустимых триграмм одного языка.
-struct NGramSet: Sendable {{
-    private let code: [Character: Int]      // символ → индекс (0 зарезервирован под «начало слова»)
-    private let n: Int
-    private let bits: [UInt8]
-
-    init(alphabet: [Character], base64: String) {{
-        var map: [Character: Int] = [:]
-        for (i, c) in alphabet.enumerated() {{ map[c] = i + 1 }}
-        self.code = map
-        self.n = alphabet.count + 1
-        self.bits = [UInt8](Data(base64Encoded: base64, options: .ignoreUnknownCharacters) ?? Data())
-    }}
-
-    /// Все ли символы строки принадлежат алфавиту языка (регистр уже приведён к нижнему).
-    func isPureAlphabet(_ s: String) -> Bool {{
-        !s.isEmpty && s.allSatisfy {{ code[$0] != nil }}
-    }}
-
-    /// Встречается ли сочетание в языке. Символ вне алфавита (цифра, пунктуация) делает
-    /// сочетание невозможным — это и есть сигнал «набрано не в той раскладке».
-    func allows(_ a: Character, _ b: Character, _ c: Character) -> Bool {{
-        guard let i = index(a), let j = index(b), let k = index(c) else {{ return false }}
-        let bit = (i * n + j) * n + k
-        let byte = bit >> 3
-        guard byte < bits.count else {{ return false }}
-        return bits[byte] & (1 << UInt8(bit & 7)) != 0
-    }}
-
-    /// Все ли сочетания слова возможны в этом языке (слово берётся с маркером начала).
-    func allowsAll(_ word: String) -> Bool {{ !hasImpossible(word) }}
-
-    /// Есть ли в слове сочетание, невозможное в этом языке.
-    func hasImpossible(_ word: String) -> Bool {{
-        let chars = Array("^" + word)
-        guard chars.count >= 3 else {{ return false }}   // короче двух букв судить не о чем
-        for i in 0...(chars.count - 3) where !allows(chars[i], chars[i+1], chars[i+2]) {{
-            return true
-        }}
-        return false
-    }}
-
-    private func index(_ c: Character) -> Int? {{
-        if c == "^" {{ return 0 }}
-        return code[c]
-    }}
-}}
-'''
-
-    prefixes = f'''import Foundation
-
-/// Начала настоящих слов русского и английского — Bloom-фильтры на префиксах длиной до
-/// {PREFIX_MAXLEN} символов. СГЕНЕРИРОВАНО `macos/tools/gen_instant_tables.py` по тому же корпусу, что и
-/// `NGramTables`. Руками не править.
-///
-/// Зачем вдобавок к статистике сочетаний: она честно считает «http» невозможным для английского
-/// (такого сочетания в живой речи нет), и «htt» улетало бы в «рее». Словарь начал слов это
-/// ловит — «http» настоящее слово, значит человек его и печатал. Обратная проверка тоже нужна:
-/// одного словаря мало, редкое слово вне корпуса он объявляет мусором, поэтому решение
-/// принимается только при согласии обеих моделей (см. InstantDetector).
-///
-/// Bloom, а не точный набор: {BLOOM_BITS_PER_ITEM} бит на префикс даёт ru {len(ru_pref)} Б и en {len(en_pref)} Б вместо сотен
-/// килобайт, ценой ~0,8% ложноположительных — и обе стороны от них лишь консервативнее
-/// (лишний раз промолчим), потому что решение требует согласия ещё и статистики сочетаний.
-enum WordPrefixes {{
-    static let ru = PrefixBloom(bits: {ru_m}, base64: ruBase64)
-    static let en = PrefixBloom(bits: {en_m}, base64: enBase64)
-
-    private static let ruBase64 = """
-{wrap(ru_pref)}
-    """
-
-    private static let enBase64 = """
-{wrap(en_pref)}
-    """
-}}
-
-/// Bloom-фильтр начал слов одного языка.
-struct PrefixBloom: Sendable {{
-    /// Дальше префиксы не хранились — длинные обрезаем до этой длины (надмножество: любой
-    /// более длинный префикс начинается с сохранённого, так что «неизвестно» не соврёт).
-    static let maxLength = {PREFIX_MAXLEN}
-    private static let hashCount = {BLOOM_K}
-
-    private let m: Int
-    private let bits: [UInt8]
-
-    init(bits count: Int, base64: String) {{
-        self.m = count
-        self.bits = [UInt8](Data(base64Encoded: base64, options: .ignoreUnknownCharacters) ?? Data())
-    }}
-
-    /// Начинается ли хоть одно слово языка с этой строки (регистр — нижний).
-    /// Ложноположительные возможны (Bloom), ложноотрицательных нет.
-    func isWordStart(_ prefix: String) -> Bool {{
-        guard !bits.isEmpty, !prefix.isEmpty else {{ return false }}
-        let key = String(prefix.prefix(PrefixBloom.maxLength))
-        let data = Array(key.utf8)
-        let h1 = PrefixBloom.fnv1a(data, seed: 0)
-        let h2 = PrefixBloom.fnv1a(data, seed: 0x9E37_79B9_7F4A_7C15)
-        for i in 0..<PrefixBloom.hashCount {{
-            let bit = Int((h1 &+ UInt64(i) &* h2) % UInt64(m))
-            let byte = bit >> 3
-            guard byte < bits.count, bits[byte] & (1 << UInt8(bit & 7)) != 0 else {{ return false }}
-        }}
-        return true
-    }}
-
-    /// FNV-1a 64. Тот же алгоритм, что в генераторе — иначе фильтр читался бы мимо.
-    private static func fnv1a(_ data: [UInt8], seed: UInt64) -> UInt64 {{
-        var h: UInt64 = 0xcbf2_9ce4_8422_2325 ^ seed
-        for b in data {{
-            h = (h ^ UInt64(b)) &* 0x0000_0100_0000_01b3
-        }}
-        return h
-    }}
-}}
-'''
-    open(os.path.join(OUT, "NGramTables.swift"), "w", encoding="utf-8").write(ngram)
-    open(os.path.join(OUT, "WordPrefixes.swift"), "w", encoding="utf-8").write(prefixes)
-    print(f"триграммы: ru {len(ru_tri)} Б, en {len(en_tri)} Б")
-    print(f"префиксы:  ru {len(ru_pref)} Б ({ru_m} бит), en {len(en_pref)} Б ({en_m} бит)")
+    os.makedirs(OUT, exist_ok=True)
+    manifest = {"formatVersion": PACK_FORMAT, "languages": {}}
+    for lang, cfg in LANGUAGES.items():
+        words = load(cfg["corpus"], cfg["alphabet"])
+        pack = build_pack(lang, cfg["alphabet"], words)
+        name = f"{lang}.pack"
+        with open(os.path.join(OUT, name), "wb") as f:
+            f.write(pack)
+        manifest["languages"][lang] = {
+            "file": name,
+            "size": len(pack),
+            "sha256": hashlib.sha256(pack).hexdigest(),
+            "version": TABLES_VERSION,
+        }
+        print(f"{lang}: {len(pack)} Б из {len(words)} слов")
+    with open(os.path.join(OUT, "manifest.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False, indent=2)
+        f.write("\n")
+    print(f"манифест: {os.path.abspath(os.path.join(OUT, 'manifest.json'))}")
 
 
 if __name__ == "__main__":
