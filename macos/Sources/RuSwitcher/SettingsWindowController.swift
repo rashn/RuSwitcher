@@ -11,6 +11,8 @@ final class SettingsWindowController {
     private var debugLogCheckbox: NSButton?
     private var caretFlagCheckbox: NSButton?
     private var autoConvertCheckbox: NSButton?      // #4: синк тумблера меню → окно настроек
+    private var instantConvertCheckbox: NSButton?   // надстройка над авто-конверсией — гаснет вместе с ней
+    private var instantTablesLabel: NSTextField?    // подпись о состоянии языковых паков
     private var remoteDesktopCheckbox: NSButton?    // #5: то же (опционален — за фичефлагом)
     private var layout1Popup: NSPopUpButton?
     private var layout2Popup: NSPopUpButton?
@@ -73,6 +75,7 @@ final class SettingsWindowController {
     /// #4/#5: синхронизировать чекбоксы с переключением из меню-бара.
     func updateAutoConvertState(_ enabled: Bool) {
         autoConvertCheckbox?.state = enabled ? .on : .off
+        instantConvertCheckbox?.isEnabled = enabled   // без авто-конверсии конверсия на лету не работает
     }
     func updateRemoteDesktopState(_ enabled: Bool) {
         remoteDesktopCheckbox?.state = enabled ? .on : .off
@@ -281,8 +284,10 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabExceptions
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 600))
-        var y: CGFloat = 586          // y — верх следующего элемента, идём сверху вниз
+        // Высота с запасом на чекбокс конверсии на лету: три секции исключений по 132 px
+        // должны уместиться целиком, иначе нижняя уезжает за край вкладки.
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 676))
+        var y: CGFloat = 662          // y — верх следующего элемента, идём сверху вниз
         exceptionEditors.removeAll()
 
         // Авто-конвертация
@@ -296,6 +301,30 @@ final class SettingsWindowController {
         acHint.frame = NSRect(x: 40, y: y - 32, width: 400, height: 32)
         acHint.font = .systemFont(ofSize: 11); acHint.textColor = .secondaryLabelColor
         view.addSubview(acHint)
+        y -= 38
+
+        // Конверсия на лету — надстройка над авто-конверсией, поэтому с отступом и гаснет вместе с ней
+        let instant = NSButton(checkboxWithTitle: L10n.settingsInstantConvert, target: self, action: #selector(instantConvertChanged))
+        instant.frame = NSRect(x: 40, y: y - 22, width: 400, height: 22)
+        instant.state = SettingsManager.shared.instantConvert ? .on : .off
+        instant.isEnabled = SettingsManager.shared.autoConvert
+        view.addSubview(instant)
+        instantConvertCheckbox = instant
+        y -= 24
+        let icHint = NSTextField(wrappingLabelWithString: L10n.settingsInstantConvertHint)
+        icHint.frame = NSRect(x: 60, y: y - 44, width: 380, height: 44)
+        icHint.font = .systemFont(ofSize: 11); icHint.textColor = .secondaryLabelColor
+        view.addSubview(icHint)
+        y -= 46
+        // Состояние языковых паков: данных в приложении нет, таблицы качаются по включению.
+        let icStatus = NSTextField(wrappingLabelWithString: instantTablesStatusText())
+        icStatus.frame = NSRect(x: 60, y: y - 30, width: 380, height: 30)
+        icStatus.font = .systemFont(ofSize: 11); icStatus.textColor = .tertiaryLabelColor
+        view.addSubview(icStatus)
+        instantTablesLabel = icStatus
+        InstantTablesUpdater.onStatusChange = { [weak self] _ in
+            self?.instantTablesLabel?.stringValue = self?.instantTablesStatusText() ?? ""
+        }
         y -= 38
 
         // Флаг у курсора (issue #10)
@@ -779,7 +808,32 @@ final class SettingsWindowController {
     @objc private func autoConvertChanged(_ sender: NSButton) {
         let enabled = sender.state == .on
         SettingsManager.shared.autoConvert = enabled
+        instantConvertCheckbox?.isEnabled = enabled
         onAutoConvertChanged?(enabled)
+    }
+
+    @objc private func instantConvertChanged(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        SettingsManager.shared.instantConvert = enabled
+        // Включили — сразу тянем паки текущей пары раскладок (данных в бинаре нет). Не скачались —
+        // фича молча не работает, подпись об этом скажет, попытка повторится при следующем включении.
+        if enabled, let langs = InstantTablesUpdater.languagesForCurrentPair() {
+            InstantTablesUpdater.ensurePacks(for: langs, force: true)
+        }
+        instantTablesLabel?.stringValue = instantTablesStatusText()
+    }
+
+    /// Подпись под галкой: что сейчас с языковыми паками.
+    private func instantTablesStatusText() -> String {
+        switch InstantTablesUpdater.status {
+        case .downloading:      return L10n.instantTablesDownloading
+        case let .failed(text): return text
+        case .ready, .idle:
+            guard SettingsManager.shared.instantConvert else { return L10n.settingsInstantConvertNote }
+            let langs = InstantTablesUpdater.languagesForCurrentPair() ?? []
+            let ready = !langs.isEmpty && langs.allSatisfy { InstantTables.isDownloaded($0) }
+            return ready ? L10n.instantTablesReady : L10n.settingsInstantConvertNote
+        }
     }
 
     @objc private func remoteDesktopChanged(_ sender: NSButton) {

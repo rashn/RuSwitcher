@@ -140,6 +140,56 @@ final class TextConverter {
         return true
     }
 
+    /// Конверсия на лету, хвостом фразы: чиним не только текущее слово, но и уже набранные
+    /// перед ним слова строки. Нужно потому, что короткие слова поодиночке не решаемы — «dj»
+    /// честное английское слово, и в «dj gfitn» оно проскакивало, оставляя «dj пашет». Когда
+    /// же по «gfitn» стало ясно, что человек пишет по-русски, направление известно, и хвост
+    /// добирается умной по-словной конверсией (`SmartConvert.lineTail`): верные слова она
+    /// оставляет, мусор чинит, короткие дотягивает по заданному направлению.
+    ///
+    /// `tailLength` — сколько последних символов строки составляют текущее (незаконченное)
+    /// слово: его конверсию `tailConverted` уже посчитал вызывающий, словарю она не по зубам.
+    /// Возвращает false, если чинить в голове нечего — тогда вызывающий делает обычную
+    /// однословную замену, не трогая остальную строку.
+    func convertLineTail(lineKeys: [TypedKey], tailLength: Int, tailConverted: String,
+                         toCyrillic: Bool) -> Bool {
+        guard !isConverting, tailLength > 0, lineKeys.count > tailLength else { return false }
+        // Сколько текста вообще позволено переписать. Ограничения жёсткие и намеренно
+        // консервативные: 19.08 ложное срабатывание утащило 25 символов готовой фразы, и урок
+        // тут не только в детекторе — цена ЛЮБОЙ ошибки должна быть маленькой. Починка хвоста
+        // нужна для начала фразы, набранного не в той раскладке, а это два-три слова; всё
+        // остальное лучше отдать однословной замене.
+        guard lineKeys.count <= 32 else { return false }
+        guard let line = DynamicKeyMapping.lineString(from: lineKeys), line.count == lineKeys.count,
+              line.count > tailLength else { return false }   // счёт разошёлся (dead-key/графемы) — не рискуем
+
+        let head = String(line.dropLast(tailLength))
+        guard head.split(separator: " ").count <= 3 else {
+            rslog("instant: line tail bail — голова длиннее трёх слов")
+            return false
+        }
+        // nil — SmartConvert отказался (в голове словарное слово либо пара не Lat+Cyr).
+        guard let headFixed = SmartConvert.lineTail(head, toCyrillic: toCyrillic) else { return false }
+        // Голова уже верная (человек писал по-русски и только последнее слово ушло в другую
+        // раскладку) — незачем стирать всю строку, хватит однословной замены.
+        guard headFixed != head, headFixed.count == head.count else { return false }
+
+        isConverting = true
+        let insert = headFixed + tailConverted
+        lastWasBuffer = true
+        lastOriginal = line
+        lastConverted = insert
+        rslog("instant: line tail \(line.count) chars (head \(head.count))")
+        injectQueue.async { [weak self] in
+            guard let self else { return }
+            self.backspace(line.count)
+            usleep(8_000)
+            self.insertText(insert)
+            Task { @MainActor in self.isConverting = false }
+        }
+        return true
+    }
+
     /// issue #24: конвертировать всю набранную строку (от курсора до начала строки) без
     /// выделения мышью. Сами выделяем Shift+Cmd+← и прогоняем через путь выделения (умная
     /// конверсия починит только слова не в той раскладке, верные — оставит). При no-op/сбое
