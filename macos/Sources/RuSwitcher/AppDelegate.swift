@@ -40,6 +40,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
             Task { @MainActor in Dict.warmUp() }
         }
+
+        // Скрытая иконка: reopen-событие приходит только УЖЕ работающему приложению.
+        // Свежий РУЧНОЙ запуск со скрытой иконкой без этого блока «тих» (ни иконки, ни
+        // окна — выглядит как «не запустилось»). Показываем настройки; автологин-старт
+        // (флаг login-item в oapp Apple event) остаётся тихим, как и положено.
+        if SettingsManager.shared.hideMenuBarIcon && !Self.launchedAsLoginItem() {
+            settingsController.showWindow()
+        }
+    }
+
+    /// Запущены ли мы как login item (автостарт): loginwindow помечает oapp-событие
+    /// флагом keyAELaunchedAsLogInItem в propData.
+    private static func launchedAsLoginItem() -> Bool {
+        guard let event = NSAppleEventManager.shared().currentAppleEvent,
+              event.eventID == AEEventID(kAEOpenApplication) else { return false }
+        return event.paramDescriptor(forKeyword: AEKeyword(keyAEPropData))?.enumCodeValue
+            == OSType(keyAELaunchedAsLogInItem)
     }
 
     private func setupSettingsCallbacks() {
@@ -73,6 +90,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self?.rebuildMenu()          // синхронизировать галочку в меню
             self?.syncCaretIndicator()   // создать/снести индикатор + обновить гейт onUserInput
         }
+        settingsController.onHideIconChanged = { [weak self] hide in
+            self?.statusItem.isVisible = !hide
+        }
+    }
+
+    /// Повторный запуск приложения (двойной клик в «Программах», Spotlight, Launchpad) —
+    /// стандартный для menu-bar-утилит путь добраться до настроек при СКРЫТОЙ иконке.
+    /// Открываем настройки и при видимой иконке: reopen без реакции выглядит как «не работает».
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settingsController.showWindow()
+        return false
     }
 
     // MARK: - Learn-from-undo (предложить добавить слово в never-convert)
@@ -644,6 +672,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        // Иконку можно полностью скрыть (Настройки → Расширенные). isVisible вместо
+        // removeStatusItem: система помнит позицию, а объект живёт — все пути обновления
+        // (updateStatusIcon/rebuildMenu) продолжают работать без nil-проверок.
+        statusItem.isVisible = !SettingsManager.shared.hideMenuBarIcon
         rebuildMenu()
         // issue #9: иконка должна отражать раскладку и при СИСТЕМНОЙ смене (стандартный/
         // переопределённый хоткей), а не только при нашей конверсии. Слушаем системное

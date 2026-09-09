@@ -45,6 +45,11 @@ enum L10n {
     static var settingsContact: String { s("settings.contact") }
     static var settingsDebugLog: String { s("settings.debugLog") }
     static var settingsSecureNotice: String { s("settings.secureNotice") }
+    static var settingsHideIcon: String { s("settings.hideIcon") }
+    static var settingsHideIconHint: String { s("settings.hideIcon.hint") }
+    static var settingsHideIconAlertTitle: String { s("settings.hideIcon.alert.title") }
+    static var settingsHideIconAlertText: String { s("settings.hideIcon.alert.text") }
+    static var settingsQuit: String { s("settings.quit") }
     static var settingsShowLog: String { s("settings.showLog") }
     static var settingsSendLog: String { s("settings.sendLog") }
     static var settingsHotkey: String { s("settings.hotkey") }
@@ -257,6 +262,11 @@ enum L10n {
             "settings.contact": "Contact Developer",
             "settings.debugLog": "Debug logging",
             "settings.secureNotice": "Show the Secure Input notice",
+            "settings.hideIcon": "Hide the menu bar icon",
+            "settings.hideIcon.hint": "To open Settings or bring the icon back, just launch RuSwitcher again (Applications or Spotlight).",
+            "settings.hideIcon.alert.title": "Hide the menu bar icon?",
+            "settings.hideIcon.alert.text": "RuSwitcher will keep working in the background. To open Settings or bring the icon back, simply launch RuSwitcher again — double-click it in Applications or find it via Spotlight.",
+            "settings.quit": "Quit RuSwitcher",
             "settings.showLog": "Show Log File",
             "settings.sendLog": "Send Log",
             "settings.hotkey": "Tap the trigger key alone — converts the last word (or selected text). Double tap — reverse.",
@@ -375,6 +385,11 @@ enum L10n {
             "settings.contact": "Связаться с разработчиком",
             "settings.debugLog": "Режим отладки",
             "settings.secureNotice": "Показывать подсказку о защищённом вводе",
+            "settings.hideIcon": "Скрывать иконку в меню-баре",
+            "settings.hideIcon.hint": "Чтобы открыть настройки или вернуть иконку, просто запустите RuSwitcher ещё раз («Программы» или Spotlight).",
+            "settings.hideIcon.alert.title": "Скрыть иконку из меню-бара?",
+            "settings.hideIcon.alert.text": "RuSwitcher продолжит работать в фоне. Чтобы открыть настройки или вернуть иконку, просто запустите RuSwitcher ещё раз — двойным кликом в «Программах» или через Spotlight.",
+            "settings.quit": "Завершить RuSwitcher",
             "settings.showLog": "Показать файл лога",
             "settings.sendLog": "Отправить лог",
             "settings.hotkey": "Тап клавиши-триггера — конвертирует последнее слово (или выделенный текст). Двойной тап — обратно.",

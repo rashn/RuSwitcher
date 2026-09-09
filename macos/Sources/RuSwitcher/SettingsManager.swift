@@ -43,6 +43,7 @@ final class SettingsManager: @unchecked Sendable {
         static let keySound = "com.ruswitcher.keySound"
         static let caretFlag = "com.ruswitcher.caretFlag"
         static let secureInputNotice = "com.ruswitcher.secureInputNotice"
+        static let hideMenuBarIcon = "com.ruswitcher.hideMenuBarIcon"
         static let monochromeIcon = "com.ruswitcher.monochromeIcon"
         static let deniedAppsAdded = "com.ruswitcher.deniedAppsAdded"
         static let deniedAppsRemoved = "com.ruswitcher.deniedAppsRemoved"
@@ -235,6 +236,15 @@ final class SettingsManager: @unchecked Sendable {
     var secureInputNoticeEnabled: Bool {
         get { defaults.object(forKey: Keys.secureInputNotice) as? Bool ?? true }
         set { defaults.set(newValue, forKey: Keys.secureInputNotice) }
+    }
+
+    /// Полностью скрыть иконку из меню-бара (запрос пользователя: «значок мозолит глаз»).
+    /// По умолчанию ВЫКЛ. Путь назад — повторный запуск приложения: reopen-обработчик
+    /// открывает Настройки (см. applicationShouldHandleReopen). Аварийный сброс:
+    /// defaults delete com.ruswitcher.app com.ruswitcher.hideMenuBarIcon
+    var hideMenuBarIcon: Bool {
+        get { defaults.bool(forKey: Keys.hideMenuBarIcon) }
+        set { defaults.set(newValue, forKey: Keys.hideMenuBarIcon) }
     }
 
     var caretFlag: Bool {

@@ -27,6 +27,7 @@ final class SettingsWindowController {
     var onAutoConvertChanged: ((Bool) -> Void)?
     var onRemoteDesktopChanged: ((Bool) -> Void)?
     var onCaretFlagChanged: ((Bool) -> Void)?
+    var onHideIconChanged: ((Bool) -> Void)?
 
     func showWindow() {
         if let window {
@@ -424,8 +425,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabAdvanced
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 480))
-        var y: CGFloat = 430
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 595))
+        var y: CGFloat = 545
 
         // Бета-версии (пред-релизы) — для тестировщиков; по умолчанию ВЫКЛ.
         let betaCheckbox = NSButton(checkboxWithTitle: L10n.settingsBetaChannel,
@@ -441,7 +442,7 @@ final class SettingsWindowController {
         betaHint.font = .systemFont(ofSize: 11)
         betaHint.textColor = .secondaryLabelColor
         view.addSubview(betaHint)
-        y -= 47   // → 310, дальше idём по бегущему y
+        y -= 47   // дальше идём по бегущему y
 
         // issue #22 (B): умная по-словная конверсия выделения. По умолчанию ВКЛ.
         let smartCheckbox = NSButton(checkboxWithTitle: L10n.settingsSmartConversion,
@@ -500,6 +501,22 @@ final class SettingsWindowController {
         view.addSubview(secureNoticeCheckbox)
         y -= 32
 
+        // Скрыть иконку из меню-бара (запрос пользователя). По умолчанию ВЫКЛ.
+        // При включении — подтверждающий алерт с объяснением, как вернуть (reopen).
+        let hideIconCheckbox = NSButton(checkboxWithTitle: L10n.settingsHideIcon,
+                                        target: self, action: #selector(hideIconChanged(_:)))
+        hideIconCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        hideIconCheckbox.state = SettingsManager.shared.hideMenuBarIcon ? .on : .off
+        view.addSubview(hideIconCheckbox)
+        y -= 18
+
+        let hideIconHint = NSTextField(wrappingLabelWithString: L10n.settingsHideIconHint)
+        hideIconHint.frame = NSRect(x: 40, y: y - 18, width: 400, height: 32)
+        hideIconHint.font = .systemFont(ofSize: 11)
+        hideIconHint.textColor = .secondaryLabelColor
+        view.addSubview(hideIconHint)
+        y -= 47
+
         // Debug log
         let debugCheckbox = NSButton(checkboxWithTitle: L10n.settingsDebugLog, target: self, action: #selector(debugLogChanged))
         debugCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
@@ -529,9 +546,41 @@ final class SettingsWindowController {
         pathLabel.textColor = .tertiaryLabelColor
         pathLabel.isSelectable = true
         view.addSubview(pathLabel)
+        y -= 70
+
+        // Завершить приложение. Обязателен при скрытой иконке: LSUIElement-приложение без
+        // меню-бара не ловит Cmd-Q, и другого пути выйти при isVisible=false просто нет.
+        let quitBtn = NSButton(title: L10n.settingsQuit, target: self, action: #selector(quitApp))
+        quitBtn.frame = NSRect(x: 20, y: y, width: 200, height: 32)
+        quitBtn.bezelStyle = .rounded
+        view.addSubview(quitBtn)
 
         item.view = topAligned(view)
         return item
+    }
+
+    @objc private func hideIconChanged(_ sender: NSButton) {
+        let hide = sender.state == .on
+        if hide {
+            // Подтверждение с рецептом возврата — снимает страх «а как я его потом найду».
+            let alert = NSAlert()
+            alert.messageText = L10n.settingsHideIconAlertTitle
+            alert.informativeText = L10n.settingsHideIconAlertText
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: L10n.settingsHideIcon)
+            alert.addButton(withTitle: L10n.commonCancel)
+            NSApp.activate(ignoringOtherApps: true)
+            if alert.runModal() != .alertFirstButtonReturn {
+                sender.state = .off
+                return
+            }
+        }
+        SettingsManager.shared.hideMenuBarIcon = hide
+        onHideIconChanged?(hide)
+    }
+
+    @objc private func quitApp() {
+        NSApp.terminate(nil)
     }
 
     // MARK: - Language Popup
