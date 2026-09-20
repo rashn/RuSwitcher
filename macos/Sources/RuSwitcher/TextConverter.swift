@@ -94,8 +94,11 @@ final class TextConverter {
     /// раскладки не определились.
     /// passthroughSuffix (issue #15): прилипшая к слову пунктуация — стирается вместе со
     /// словом и возвращается в поле как есть, БЕЗ кейкод-конверсии (',' EN ↔ 'б' RU).
+    /// typedSuffix (issue #33): суффикс КАК НАБРАН, если passthroughSuffix уже
+    /// сконвертирован («?»→«,» на Русской — ПК) — для честного отката реконвертом.
+    /// Пустой typedSuffix означает «совпадает с passthroughSuffix».
     func convert(wordKeys: [TypedKey], prevWordKeys: [TypedKey], boundaryCount: Int,
-                 passthroughSuffix: String = "") -> Bool {
+                 passthroughSuffix: String = "", typedSuffix: String = "") -> Bool {
         let keys: [TypedKey]
         let trailingSpaces: Int
         if !wordKeys.isEmpty {
@@ -123,8 +126,11 @@ final class TextConverter {
 
         let spaces = String(repeating: " ", count: trailingSpaces)
         let bsCount = keys.count + passthroughSuffix.count + trailingSpaces
+        // issue #33 (скептик, HIGH): в lastOriginal — суффикс КАК НАБРАН, иначе реконверт
+        // после «tkrb?»→«елки,» восстанавливал бы «tkrb,» вместо «tkrb?».
+        let originalSuffix = typedSuffix.isEmpty ? passthroughSuffix : typedSuffix
         let insert = pair.converted + passthroughSuffix + spaces
-        lastOriginal = pair.original + passthroughSuffix + spaces
+        lastOriginal = pair.original + originalSuffix + spaces
         lastConverted = pair.converted + passthroughSuffix + spaces
         lastWasBuffer = true
         rslog("buffer convert: \(keys.count) keys (+\(passthroughSuffix.count) punct, +\(trailingSpaces) sp)")

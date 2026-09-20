@@ -61,7 +61,7 @@ enum SmartConvert {
                             : (flippedLat > 0 && flippedCyr == 0) ? .lat : nil
 
         // Пас 2 — неразрешённые по сигналу.
-        for i in pending { results[i] = signalFlip(toks[i].str, target: target) }
+        for i in pending { results[i] = signalFlip(toks[i].str, target: target, latLang: latLang, cyrLang: cyrLang) }
         return results.map { $0 ?? "" }.joined()
     }
 
@@ -99,7 +99,7 @@ enum SmartConvert {
         let whole = DynamicKeyMapping.convertBidirectional(w)
         let wc = letterCore(whole)
         if wc.count >= 2, wc.allSatisfy({ $0.isLetter }), Dict.isValidWord(wc.lowercased(), lang: flipLang) {
-            return .flip(whole, flippedScript)
+            return .flip(punctFixup(original: w, flipped: whole, towardLang: flipLang), flippedScript)
         }
         // (2) со снятым хвостом реальной пунктуации — «ghtlkj;tybt,» → «продолжение» + «,».
         let (body, suffix) = splitTrailingNonLetters(w)
@@ -107,7 +107,7 @@ enum SmartConvert {
             let bflip = DynamicKeyMapping.convertBidirectional(body)
             let bc = letterCore(bflip)
             if bc.count >= 2, bc.allSatisfy({ $0.isLetter }), Dict.isValidWord(bc.lowercased(), lang: flipLang) {
-                return .flip(bflip + suffix, flippedScript)
+                return .flip(bflip + DynamicKeyMapping.punctThroughPair(suffix, towardLang: flipLang), flippedScript)
             }
         }
         return .unresolved   // имя/бренд/термин, словарём не подтверждён → по сигналу
@@ -120,7 +120,7 @@ enum SmartConvert {
     /// ВАЖНО: главная защита научных «c»/«e» — ОТСУТСТВИЕ сигнала (сосед-слово валиден → target
     /// nil → сюда не входим). При СИЛЬНОМ сигнале «c»/«e» всё же флипаются (c→с, e→у — частотные
     /// 1-букв. слова), т.е. это часть агрессивности «умной» (по решению владельца, вариант A).
-    private static func signalFlip(_ orig: String, target: Script?) -> String {
+    private static func signalFlip(_ orig: String, target: Script?, latLang: String, cyrLang: String) -> String {
         guard let target else { return orig }
         var lead = "", trail = ""
         var chars = Array(orig)
@@ -139,7 +139,11 @@ enum SmartConvert {
             guard let fch = letterCore(flipped).first,
                   (target == .cyr ? cyr1 : lat1).contains(Character(fch.lowercased())) else { return orig }
         }
-        return lead + flipped + trail
+        // issue #33: окружающие знаки — сквозь направленную карту (знак→знак; Русская — ПК).
+        let toward = (target == .cyr) ? cyrLang : latLang
+        return DynamicKeyMapping.punctThroughPair(lead, towardLang: toward)
+             + flipped
+             + DynamicKeyMapping.punctThroughPair(trail, towardLang: toward)
     }
 
     // MARK: - Helpers
@@ -185,6 +189,23 @@ enum SmartConvert {
         while let f = chars.first, !f.isLetter { chars.removeFirst() }
         while let l = chars.last, !l.isLetter { chars.removeLast() }
         return String(chars)
+    }
+
+    /// issue #33: пост-обработка флипа-целиком. Позиции, где НЕ-буква ПРЕВРАТИЛАСЬ в букву
+    /// («ltk.» → «делю»: . → ю), подтверждены словарём вместе со словом — не трогаем.
+    /// Позиции, где не-буква ОСТАЛАСЬ не-буквой (двунаправленная карта её не разрешила или
+    /// разрешила коллизией не туда), прогоняем через направленную карту знак→знак:
+    /// «tkrb?» на Русской — ПК → «елки,». Несовпадение длин (прекомпоза) — отдаём как есть.
+    private static func punctFixup(original: String, flipped: String, towardLang: String) -> String {
+        let o = Array(original), f = Array(flipped)
+        guard o.count == f.count, zip(o, f).contains(where: { !$0.0.isLetter && !$0.0.isNumber && !$0.1.isLetter }) else {
+            return flipped
+        }
+        return String(zip(o, f).map { oc, fc in
+            guard !oc.isLetter, !oc.isNumber, !fc.isLetter else { return fc }
+            let mapped = DynamicKeyMapping.punctThroughPair(String(oc), towardLang: towardLang)
+            return mapped.count == 1 ? mapped.first! : fc
+        })
     }
 
     /// Отделяет хвост НЕ-букв (реальную пунктуацию) от тела слова: «прод,»→(«прод»,«,»).

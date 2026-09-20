@@ -614,8 +614,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         rslog("auto: convert \(keys.count) keys (+\(suffix.count) punct, +\(bc) sp)")
+        // issue #33: хвост-знак конвертим сквозь пару, когда с обеих сторон знак
+        // (Русская — ПК: «tkrb?» → «елки,»); буква по ту сторону — литерал (issue #15).
+        // Скептик (HIGH): на удалёнке клавиши приходят символами (char-only), направление
+        // определено по СКРИПТУ, а локальная раскладка может быть любой — карта пары дала бы
+        // мусор (RU '?'→'&'). Для проброшенного текста суффикс остаётся литералом.
+        let convertedSuffix = keys.allSatisfy({ $0.char != nil })
+            ? suffix : DynamicKeyMapping.punctThroughCurrentPair(suffix)
         if textConverter.convert(wordKeys: [], prevWordKeys: keys, boundaryCount: bc,
-                                 passthroughSuffix: suffix) {
+                                 passthroughSuffix: convertedSuffix, typedSuffix: suffix) {
             keyboardMonitor.markConverted()
             LayoutSwitcher.switchToOpposite()
             updateStatusIcon()

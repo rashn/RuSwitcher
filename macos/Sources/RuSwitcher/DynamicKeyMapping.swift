@@ -75,6 +75,71 @@ enum DynamicKeyMapping {
         return map
     }
 
+    // MARK: - issue #33: пунктуация «сквозь раскладку» (Русская — ПК)
+
+    /// Пара «текущая → противоположная», та же резолюция, что у convertKeys.
+    private static func resolveCurrentPair() -> (source: TISInputSource, target: TISInputSource)? {
+        let settings = SettingsManager.shared
+        let layouts = LayoutSwitcher.installedLayouts()
+        let currentID = LayoutSwitcher.currentLayoutID()
+        let l1 = settings.layout1ID.isEmpty ? LayoutSwitcher.autoDetectID1(from: layouts) : settings.layout1ID
+        let l2 = settings.layout2ID.isEmpty ? LayoutSwitcher.autoDetectID2(from: layouts) : settings.layout2ID
+        let targetID = (currentID == l1) ? l2 : l1
+        guard let source = layouts.first(where: { LayoutSwitcher.sourceID($0) == currentID }),
+              let target = layouts.first(where: { LayoutSwitcher.sourceID($0) == targetID }) else { return nil }
+        return (source, target)
+    }
+
+    /// Пара, ориентированная НА язык towardLang: target — раскладка этого языка из пары
+    /// настроек, source — противоположная. Для SmartConvert, где направление флипа
+    /// известно per-word и может не совпадать с «текущая → противоположная».
+    private static func resolvePair(towardLang: String) -> (source: TISInputSource, target: TISInputSource)? {
+        let settings = SettingsManager.shared
+        let layouts = LayoutSwitcher.installedLayouts()
+        let l1 = settings.layout1ID.isEmpty ? LayoutSwitcher.autoDetectID1(from: layouts) : settings.layout1ID
+        let l2 = settings.layout2ID.isEmpty ? LayoutSwitcher.autoDetectID2(from: layouts) : settings.layout2ID
+        guard let s1 = layouts.first(where: { LayoutSwitcher.sourceID($0) == l1 }),
+              let s2 = layouts.first(where: { LayoutSwitcher.sourceID($0) == l2 }) else { return nil }
+        let want = towardLang.lowercased().prefix(2)
+        if LayoutSwitcher.languageCode(s2)?.lowercased().prefix(2) == want { return (s1, s2) }
+        if LayoutSwitcher.languageCode(s1)?.lowercased().prefix(2) == want { return (s2, s1) }
+        return nil
+    }
+
+    /// issue #33: конвертирует знаки через карту пары, только когда с ОБЕИХ сторон
+    /// НЕ буква и НЕ цифра. На «Русская — ПК» клавиша /? даёт знак в обеих раскладках
+    /// (? → , и / → .) — такие конвертируем; на стандартной Русской по ту сторону от
+    /// «,» — буква «б», такие остаются литералом (issue #15, «привет,» не ломаем).
+    /// Целевой символ дополнительно ограничен правдоподобной терминальной пунктуацией
+    /// (скептик, MEDIUM): у стандартной Русской знаки живут и на ЦИФРОВОМ ряду
+    /// (',' = Shift+6 ↔ '^', '.' = Shift+7 ↔ '&', ';' ↔ '*', ':' ↔ '%') — без белого
+    /// списка обратное направление давало бы «hello&» вместо «hello.». Список пропускает
+    /// оба направления #33 ('?'↔',', '/'↔'.') и блокирует утечку в ^&*%/@#.
+    private static let plausibleTargetPunct = Set("?,.!;:…")
+
+    private static func punctApply(_ s: String, map: [Character: Character]) -> String {
+        String(s.map { c in
+            guard !c.isLetter, !c.isNumber,
+                  let t = map[c], plausibleTargetPunct.contains(t) else { return c }
+            return t
+        })
+    }
+
+    /// Пунктуация «сквозь пару» в направлении текущая → противоположная (буферные пути:
+    /// конверсия выполняется ДО переключения раскладки, так что source = текущая).
+    static func punctThroughCurrentPair(_ s: String) -> String {
+        guard !s.isEmpty, s.contains(where: { !$0.isLetter && !$0.isNumber }) else { return s }
+        guard let pair = resolveCurrentPair() else { return s }
+        return punctApply(s, map: buildMap(from: pair.source, to: pair.target))
+    }
+
+    /// Пунктуация «сквозь пару» в явном направлении (флип SmartConvert к языку towardLang).
+    static func punctThroughPair(_ s: String, towardLang: String) -> String {
+        guard !s.isEmpty, s.contains(where: { !$0.isLetter && !$0.isNumber }) else { return s }
+        guard let pair = resolvePair(towardLang: towardLang) else { return s }
+        return punctApply(s, map: buildMap(from: pair.source, to: pair.target))
+    }
+
     /// Конвертирует текст из текущей раскладки в целевую
     static func convert(_ inputText: String) -> String {
         // LTR-текст в NFD (декомпозированные ё/й/умляуты — типично из Finder/PDF)
