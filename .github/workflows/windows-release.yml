@@ -63,6 +63,7 @@ jobs:
           retention-days: 1
 
       - name: Sign x64 executable with SignPath
+        id: sign-x64
         uses: signpath/github-action-submit-signing-request@v3
         with:
           api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
@@ -73,6 +74,26 @@ jobs:
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: build/signed-x64
+
+      - name: Report SignPath failure details
+        if: ${{ failure() && steps.sign-x64.outputs.signing-request-id != '' }}
+        shell: pwsh
+        env:
+          SIGNPATH_API_TOKEN: ${{ secrets.SIGNPATH_API_TOKEN }}
+          SIGNPATH_ORGANIZATION_ID: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          SIGNPATH_REQUEST_ID: ${{ steps.sign-x64.outputs.signing-request-id }}
+        run: |
+          $headers = @{
+            Authorization = "Bearer $env:SIGNPATH_API_TOKEN"
+            Accept = 'application/json'
+          }
+          $uri = "https://app.signpath.io/Api/v1/$env:SIGNPATH_ORGANIZATION_ID/SigningRequests/$env:SIGNPATH_REQUEST_ID"
+          $request = Invoke-RestMethod -Uri $uri -Headers $headers
+          Write-Host "SignPath status: $($request.status)"
+          Write-Host "SignPath workflow status: $($request.workflowStatus)"
+          Write-Host "SignPath malware scan: $($request.malwareScanningStatus)"
+          Write-Host "SignPath artifact configuration: $($request.artifactConfigurationSlug)"
+          Write-Host "SignPath signing policy: $($request.signingPolicySlug)"
 
       - name: Install signed x64 executable
         shell: pwsh
