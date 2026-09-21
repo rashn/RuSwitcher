@@ -25,6 +25,7 @@ jobs:
     runs-on: windows-latest
     env:
       SIGNPATH_PROJECT_SLUG: RuSwitcher
+      SIGNPATH_ARTIFACT_CONFIGURATION: initial
       SIGNPATH_SIGNING_POLICY: ${{ github.event_name == 'push' && 'release-signing' || 'test-signing' }}
     steps:
       - uses: actions/checkout@v4
@@ -52,13 +53,16 @@ jobs:
           cmake --build build/native-arm64 --config Release
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-x64/Release/RuSwitcher.exe -MaximumMiB 5
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-arm64/Release/RuSwitcher.exe -MaximumMiB 5
+          New-Item -ItemType Directory -Force -Path build/unsigned | Out-Null
+          Copy-Item build/native-x64/Release/RuSwitcher.exe build/unsigned/RuSwitcher-x64.exe
+          Copy-Item build/native-arm64/Release/RuSwitcher.exe build/unsigned/RuSwitcher-arm64.exe
 
       - name: Upload unsigned x64 executable
         id: upload-unsigned-x64
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: unsigned-app-x64-${{ steps.ver.outputs.version }}
-          path: build/native-x64/Release/RuSwitcher.exe
+          path: build/unsigned/RuSwitcher-x64.exe
+          archive: false
           if-no-files-found: error
           retention-days: 1
 
@@ -70,7 +74,9 @@ jobs:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION }}
           github-artifact-id: ${{ steps.upload-unsigned-x64.outputs.artifact-id }}
+          skip-decompress: true
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: build/signed-x64
@@ -98,7 +104,7 @@ jobs:
       - name: Install signed x64 executable
         shell: pwsh
         run: |
-          $signed = @(Get-ChildItem build\signed-x64 -Recurse -File -Filter RuSwitcher.exe)
+          $signed = @(Get-ChildItem build\signed-x64 -Recurse -File -Filter RuSwitcher-x64.exe)
           if ($signed.Count -ne 1) { throw "Expected one signed x64 executable, found $($signed.Count)" }
           if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
             throw 'SignPath returned an x64 executable without an Authenticode signature'
@@ -107,10 +113,10 @@ jobs:
 
       - name: Upload unsigned ARM64 executable
         id: upload-unsigned-arm64
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: unsigned-app-arm64-${{ steps.ver.outputs.version }}
-          path: build/native-arm64/Release/RuSwitcher.exe
+          path: build/unsigned/RuSwitcher-arm64.exe
+          archive: false
           if-no-files-found: error
           retention-days: 1
 
@@ -121,7 +127,9 @@ jobs:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION }}
           github-artifact-id: ${{ steps.upload-unsigned-arm64.outputs.artifact-id }}
+          skip-decompress: true
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: build/signed-arm64
@@ -129,7 +137,7 @@ jobs:
       - name: Install signed ARM64 executable
         shell: pwsh
         run: |
-          $signed = @(Get-ChildItem build\signed-arm64 -Recurse -File -Filter RuSwitcher.exe)
+          $signed = @(Get-ChildItem build\signed-arm64 -Recurse -File -Filter RuSwitcher-arm64.exe)
           if ($signed.Count -ne 1) { throw "Expected one signed ARM64 executable, found $($signed.Count)" }
           if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
             throw 'SignPath returned an ARM64 executable without an Authenticode signature'
@@ -160,10 +168,10 @@ jobs:
 
       - name: Upload unsigned x64 installer
         id: upload-unsigned-installer-x64
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: unsigned-installer-x64-${{ steps.ver.outputs.version }}
           path: windows/installer/dist/RuSwitcher-Setup-${{ steps.ver.outputs.version }}-x64.exe
+          archive: false
           if-no-files-found: error
           retention-days: 1
 
@@ -174,7 +182,9 @@ jobs:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION }}
           github-artifact-id: ${{ steps.upload-unsigned-installer-x64.outputs.artifact-id }}
+          skip-decompress: true
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: build/signed-installer-x64
@@ -192,10 +202,10 @@ jobs:
 
       - name: Upload unsigned ARM64 installer
         id: upload-unsigned-installer-arm64
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: unsigned-installer-arm64-${{ steps.ver.outputs.version }}
           path: windows/installer/dist/RuSwitcher-Setup-${{ steps.ver.outputs.version }}-arm64.exe
+          archive: false
           if-no-files-found: error
           retention-days: 1
 
@@ -206,7 +216,9 @@ jobs:
           organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
           project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
           signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          artifact-configuration-slug: ${{ env.SIGNPATH_ARTIFACT_CONFIGURATION }}
           github-artifact-id: ${{ steps.upload-unsigned-installer-arm64.outputs.artifact-id }}
+          skip-decompress: true
           wait-for-completion: true
           wait-for-completion-timeout-in-seconds: 1800
           output-artifact-directory: build/signed-installer-arm64
