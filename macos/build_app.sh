@@ -62,7 +62,8 @@ echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
 # 7. Подписываем Developer ID (разрешения macOS привязаны к подписи —
 #    при одинаковой подписи разрешения сохраняются между обновлениями)
-SIGN_ID="Developer ID Application: Rashid Nasibulin (9GEWCZ59HK)"
+# RS_SIGN_ID переопределяет identity (CI без сертификата ставит "-" — ad-hoc).
+SIGN_ID="${RS_SIGN_ID:-Developer ID Application: Rashid Nasibulin (9GEWCZ59HK)}"
 echo "→ Code signing with Developer ID..."
 codesign --force --deep --sign "$SIGN_ID" \
     --options runtime \

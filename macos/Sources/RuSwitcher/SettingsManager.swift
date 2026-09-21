@@ -28,6 +28,9 @@ final class SettingsManager: @unchecked Sendable {
         static let switchHotkey = "com.ruswitcher.switchHotkey"
         static let switchDoubleTap = "com.ruswitcher.switchDoubleTap"
         static let switchRightOnly = "com.ruswitcher.switchRightOnly"
+        static let caseHotkey = "com.ruswitcher.caseHotkey"       // issue #29
+        static let caseDoubleTap = "com.ruswitcher.caseDoubleTap"
+        static let caseRightOnly = "com.ruswitcher.caseRightOnly"
         static let autoConvert = "com.ruswitcher.autoConvert"
         static let smartConversion = "com.ruswitcher.smartConversion"
         static let convertByText = "com.ruswitcher.convertByText"
@@ -39,6 +42,7 @@ final class SettingsManager: @unchecked Sendable {
         static let lastBetaNotesShown = "com.ruswitcher.lastBetaNotesShown"
         static let keySound = "com.ruswitcher.keySound"
         static let caretFlag = "com.ruswitcher.caretFlag"
+        static let secureInputNotice = "com.ruswitcher.secureInputNotice"
         static let monochromeIcon = "com.ruswitcher.monochromeIcon"
         static let deniedAppsAdded = "com.ruswitcher.deniedAppsAdded"
         static let deniedAppsRemoved = "com.ruswitcher.deniedAppsRemoved"
@@ -175,6 +179,20 @@ final class SettingsManager: @unchecked Sendable {
         set { defaults.set(newValue, forKey: Keys.switchRightOnly) }
     }
 
+    /// issue #29: хоткей смены регистра (кодировка как triggerKey; пустая строка — выключен, дефолт).
+    var caseHotkey: String {
+        get { defaults.string(forKey: Keys.caseHotkey) ?? "" }
+        set { defaults.set(newValue, forKey: Keys.caseHotkey) }
+    }
+    var caseDoubleTap: Bool {
+        get { defaults.bool(forKey: Keys.caseDoubleTap) }
+        set { defaults.set(newValue, forKey: Keys.caseDoubleTap) }
+    }
+    var caseRightOnly: Bool {
+        get { defaults.bool(forKey: Keys.caseRightOnly) }
+        set { defaults.set(newValue, forKey: Keys.caseRightOnly) }
+    }
+
     /// Caps Lock как триггер требует consume-tap (чтобы подавить переключение регистра).
     var triggerIsCapsLock: Bool { triggerKey == "capsLock" }
 
@@ -212,6 +230,13 @@ final class SettingsManager: @unchecked Sendable {
     }
 
     /// issue #10: показывать флаг раскладки у текстовой каретки (бета). По умолчанию ВЫКЛ.
+    /// issue #27: показывать неактивирующую подсказку, когда защищённый ввод ставит на паузу.
+    /// По умолчанию включено; можно отключить тем, кому она мешает.
+    var secureInputNoticeEnabled: Bool {
+        get { defaults.object(forKey: Keys.secureInputNotice) as? Bool ?? true }
+        set { defaults.set(newValue, forKey: Keys.secureInputNotice) }
+    }
+
     var caretFlag: Bool {
         get { defaults.bool(forKey: Keys.caretFlag) }
         set { defaults.set(newValue, forKey: Keys.caretFlag) }

@@ -83,6 +83,17 @@ struct TriggerConfig {
         return parse(key: key, rightOnly: s.switchRightOnly, doubleTap: s.switchDoubleTap)
     }
 
+    /// issue #29: конфиг хоткея смены регистра (nil — выключен). Должен отличаться и от триггера
+    /// конверсии, и от хоткея смены раскладки — иначе один тап делал бы два действия.
+    static func caseHotkey() -> TriggerConfig? {
+        let known: Set<String> = ["option", "command", "control", "shift",
+                                  "command+shift", "control+shift", "command+option", "control+option"]
+        let s = SettingsManager.shared
+        let key = s.caseHotkey
+        guard known.contains(key), key != s.triggerKey, key != s.switchHotkey else { return nil }
+        return parse(key: key, rightOnly: s.caseRightOnly, doubleTap: s.caseDoubleTap)
+    }
+
     static func parse(key: String, rightOnly: Bool, doubleTap: Bool) -> TriggerConfig {
         let kind: Kind
         switch key {
@@ -149,6 +160,13 @@ final class KeyboardMonitor: @unchecked Sendable {
     private var switchLastTapTime: Date?   // для double-tap хоткея смены
     /// Колбэк чистого переключения раскладки (issue #14). Ставится из AppDelegate.
     var onSwitchHotkey: (() -> Void)?
+    /// issue #29: третий хоткей — смена регистра (nil = выключен).
+    private var caseConfig = TriggerConfig.caseHotkey()
+    private var caseArmed = false
+    private var casePressTime: Date?
+    private var caseLastTapTime: Date?
+    /// Колбэк смены регистра (issue #29). Ставится из AppDelegate.
+    var onCaseHotkey: (() -> Void)?
 
     // Детект соло-тапа модификатора
     private var triggerArmed = false
@@ -179,6 +197,7 @@ final class KeyboardMonitor: @unchecked Sendable {
 
         triggerConfig = TriggerConfig.current()
         switchConfig = TriggerConfig.switchHotkey()
+        caseConfig = TriggerConfig.caseHotkey()   // issue #29
         rslog("Attempting to create event tap... (trigger=\(SettingsManager.shared.triggerKey) switch=\(SettingsManager.shared.switchHotkey.isEmpty ? "off" : SettingsManager.shared.switchHotkey) capsLock=\(triggerConfig.isCapsLock))")
         let mask: CGEventMask =
             (1 << CGEventType.keyDown.rawValue)
@@ -277,6 +296,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     fileprivate func resetBuffersOnClick() {
         triggerArmed = false
         switchArmed = false
+        caseArmed = false; caseLastTapTime = nil   // issue #29
         lastTapTime = nil
         switchLastTapTime = nil
         keysTypedSinceConversion = true
@@ -289,6 +309,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     fileprivate func handleKeyDown(keyCode: UInt16, flags: CGEventFlags, char: Character? = nil) {
         triggerArmed = false
         switchArmed = false   // issue #14: клавиша между модификаторами = шорткат, не хоткей
+        caseArmed = false; caseLastTapTime = nil   // issue #29
         lastTapTime = nil
         switchLastTapTime = nil
         keysTypedSinceConversion = true
@@ -446,6 +467,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     /// Возвращает true, если событие надо «съесть» (только Caps Lock в consume-режиме).
     fileprivate func handleFlagsChanged(flags: CGEventFlags, keyCode: UInt16) -> Bool {
         handleSwitchFlags(flags: flags, keyCode: keyCode)   // issue #14: второй хоткей
+        handleCaseFlags(flags: flags, keyCode: keyCode)     // issue #29: третий хоткей (регистр)
         switch triggerConfig.kind {
         case .capsLock:
             guard keyCode == KC.capsLock else { return false }
@@ -568,6 +590,67 @@ final class KeyboardMonitor: @unchecked Sendable {
     private func fireSwitch() {
         rslog("switch hotkey: fire")
         DispatchQueue.main.async { [weak self] in self?.onSwitchHotkey?() }
+    }
+
+    /// issue #29: параллельная машина хоткея смены регистра — зеркало handleSwitchFlags.
+    private func handleCaseFlags(flags: CGEventFlags, keyCode: UInt16) {
+        guard let cfg = caseConfig else { return }
+        let allMods: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]
+        switch cfg.kind {
+        case .capsLock:
+            return
+        case let .modifier(mask, left, right):
+            let accepted: Set<UInt16> = cfg.rightOnly ? [right] : [left, right]
+            let otherMods = allMods.subtracting(mask)
+            if flags.contains(mask) {
+                if accepted.contains(keyCode) && flags.intersection(otherMods).isEmpty {
+                    caseArmed = true
+                    casePressTime = Date()
+                } else {
+                    caseArmed = false
+                }
+            } else {
+                if caseArmed, accepted.contains(keyCode), let t = casePressTime,
+                   Date().timeIntervalSince(t) < tapWindow {
+                    registerCaseTap()
+                }
+                caseArmed = false
+                casePressTime = nil
+            }
+        case let .combo(maskA, maskB):
+            let both: CGEventFlags = [maskA, maskB]
+            let others = allMods.subtracting(both)
+            if !flags.intersection(others).isEmpty {
+                caseArmed = false
+            } else if flags.contains(both) {
+                caseArmed = true
+                casePressTime = Date()
+            } else if flags.intersection(allMods).isEmpty {
+                if caseArmed, let t = casePressTime, Date().timeIntervalSince(t) < comboTapWindow {
+                    registerCaseTap()
+                }
+                caseArmed = false
+                casePressTime = nil
+            }
+        }
+    }
+
+    private func registerCaseTap() {
+        if caseConfig?.doubleTap == true {
+            if let last = caseLastTapTime, Date().timeIntervalSince(last) < tapWindow {
+                caseLastTapTime = nil
+                fireCase()
+            } else {
+                caseLastTapTime = Date()
+            }
+        } else {
+            fireCase()
+        }
+    }
+
+    private func fireCase() {
+        rslog("case hotkey: fire")
+        DispatchQueue.main.async { [weak self] in self?.onCaseHotkey?() }
     }
 
     /// Учитывает одиночный/двойной тап и запускает конвертацию.

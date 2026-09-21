@@ -3,6 +3,31 @@ import Foundation
 
 /// Управление раскладками через TIS API
 enum LayoutSwitcher {
+    /// Кэш списка раскладок: авто-путь дёргает TISCreateInputSourceList по 3–4 раза на
+    /// каждый пробел (convertKeys → currentAndOppositeLanguage → switchToOpposite), а
+    /// список меняется только при добавлении/удалении раскладки в системе. Инвалидация —
+    /// по распределённому уведомлению TIS (см. installObserverIfNeeded).
+    nonisolated(unsafe) private static var cachedLayouts: [TISInputSource]?
+    /// Кэш языка по sourceID: для сторонних раскладок languageCode гоняет UCKeyTranslate-пробы.
+    /// nil кодируем пустой строкой, чтобы не пере-пробовать безъязыкие раскладки.
+    nonisolated(unsafe) private static var languageCache: [String: String] = [:]
+    private static let cacheLock = NSLock()
+    nonisolated(unsafe) private static var observerInstalled = false
+
+    private static func installObserverIfNeeded() {
+        // Вызывается только под cacheLock (из installedLayouts) — гонки на флаге нет.
+        guard !observerInstalled else { return }
+        observerInstalled = true
+        let name = Notification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String)
+        _ = DistributedNotificationCenter.default().addObserver(forName: name, object: nil, queue: nil) { _ in
+            cacheLock.lock()
+            cachedLayouts = nil
+            languageCache.removeAll()
+            cacheLock.unlock()
+            DynamicKeyMapping.clearCache()   // данные раскладки могли смениться вместе со списком
+        }
+    }
+
     /// Возвращает ID текущей раскладки
     static func currentLayoutID() -> String {
         guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue() else {
@@ -57,16 +82,22 @@ enum LayoutSwitcher {
         TISSelectInputSource(source)
     }
 
-    /// Все установленные раскладки
+    /// Все установленные раскладки (кэш; инвалидация по уведомлению TIS)
     static func installedLayouts() -> [TISInputSource] {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        installObserverIfNeeded()
+        if let cached = cachedLayouts { return cached }
+
         let conditions: CFDictionary = [
             kTISPropertyInputSourceCategory as String: kTISCategoryKeyboardInputSource as Any,
             kTISPropertyInputSourceIsSelectCapable as String: true as Any,
         ] as CFDictionary
 
         guard let list = TISCreateInputSourceList(conditions, false)?.takeRetainedValue() as? [TISInputSource] else {
-            return []
+            return []   // сбой не кэшируем — следующий вызов попробует снова
         }
+        cachedLayouts = list
         return list
     }
 
@@ -93,12 +124,27 @@ enum LayoutSwitcher {
     /// флаг/авто/каретка ломались (#18). Поэтому при пустых метаданных определяем язык по РЕАЛЬНОМУ
     /// выводу раскладки (UCKeyTranslate → скрипт → язык).
     static func languageCode(_ source: TISInputSource) -> String? {
+        let id = sourceID(source)
+        cacheLock.lock()
+        if let cached = languageCache[id] {
+            cacheLock.unlock()
+            return cached.isEmpty ? nil : cached
+        }
+        cacheLock.unlock()
+
+        let result: String?
         if let ptr = TISGetInputSourceProperty(source, kTISPropertyInputSourceLanguages),
            let langs = Unmanaged<CFArray>.fromOpaque(ptr).takeUnretainedValue() as? [String],
            let first = langs.first, !first.isEmpty {
-            return first                       // стандартная раскладка: конкретный язык из метаданных
+            result = first                     // стандартная раскладка: конкретный язык из метаданных
+        } else {
+            result = scriptLanguage(source)    // сторонняя: определяем по выводу
         }
-        return scriptLanguage(source)          // сторонняя: определяем по выводу
+
+        cacheLock.lock()
+        languageCache[id] = result ?? ""
+        cacheLock.unlock()
+        return result
     }
 
     /// Язык по СКРИПТУ реального вывода раскладки (для сторонних раскладок без метаданных).

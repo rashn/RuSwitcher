@@ -27,9 +27,28 @@ def gh(path):
         return json.load(r)
 
 
+def brew_installs_30d():
+    """Установки через официальный Homebrew за 30 дней (cask в каталоге с 2026-09-20).
+    Открытая аналитика brew: считаются только пользователи с включённой brew analytics —
+    недооценка, но тренд честный. Окно скользящее, так что дневная дельта может быть и
+    отрицательной. При любой ошибке возвращаем None — строка просто не печатается."""
+    try:
+        req = urllib.request.Request(
+            "https://formulae.brew.sh/api/cask/ruswitcher.json",
+            headers={"User-Agent": "ruswitcher-stats"},
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.load(r)
+        val = data.get("analytics", {}).get("install", {}).get("30d", {}).get("ruswitcher")
+        return int(str(val).replace(",", "")) if val is not None else None
+    except Exception:
+        return None
+
+
 def main():
     repo = gh(f"repos/{REPO}")
     releases = gh(f"repos/{REPO}/releases?per_page=100")
+    brew30 = brew_installs_30d()
 
     per, total = {}, 0
     for rel in releases:
@@ -40,7 +59,7 @@ def main():
 
     # МСК-дата для метки
     today = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=3)).date().isoformat()
-    snap = {"date": today, "total": total, "stars": stars, "per": per}
+    snap = {"date": today, "total": total, "stars": stars, "brew30": brew30, "per": per}
 
     prev = None
     if os.path.exists(HIST):
@@ -48,6 +67,13 @@ def main():
         if lines:
             prev = json.loads(lines[-1])
     prev_per = prev.get("per", {}) if prev else {}
+
+    # Идемпотентность по дню: расписание GitHub — best-effort (2026-08-27 крон молча
+    # выпал), поэтому в workflow ДВА cron-слота. Если за сегодня уже отчитались —
+    # второй прогон тихо выходит, не дублируя дайджест и снапшот.
+    if prev and prev.get("date") == today:
+        print(f"Already reported today ({today}) — skipping (backup cron slot).")
+        return
 
     def d(cur, key):
         if prev is None or prev.get(key) is None:
@@ -80,6 +106,8 @@ def main():
     lines = [f"📊 RuSwitcher — {today}", ""]
     lines.append(f"Всего скачано: {total}{d(total, 'total')}")
     lines.append(f"⭐ Stars: {stars}{d(stars, 'stars')}")
+    if brew30 is not None:
+        lines.append(f"🍺 Homebrew за 30 дней: {brew30}{d(brew30, 'brew30')}")
     if stable:
         lines.append(f"Стабильный {stable}: {per[stable]}{dtag(stable)}")
     if beta:

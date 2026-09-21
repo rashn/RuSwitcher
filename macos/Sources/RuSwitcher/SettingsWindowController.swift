@@ -16,6 +16,7 @@ final class SettingsWindowController {
     private var layout2Popup: NSPopUpButton?
     private var languagePopup: NSPopUpButton?
     private var switchHotkeyPopup: NSPopUpButton?   // issue #20/#3: пере-populate при смене триггера
+    private var caseHotkeyPopup: NSPopUpButton?     // issue #29
     private var exceptionEditors: [ExceptionListEditor] = []
 
     /// Callback для обновления меню
@@ -96,8 +97,8 @@ final class SettingsWindowController {
         let item = NSTabViewItem()
         item.label = L10n.settingsTabGeneral
 
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 692))
-        var y: CGFloat = 652
+        let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 790))
+        var y: CGFloat = 750
 
         // Автопереключение
         let autoSwitch = NSButton(checkboxWithTitle: L10n.settingsAutoSwitch, target: self, action: #selector(autoSwitchChanged))
@@ -157,6 +158,32 @@ final class SettingsWindowController {
         switchDoubleTapCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
         switchDoubleTapCheckbox.state = SettingsManager.shared.switchDoubleTap ? .on : .off
         view.addSubview(switchDoubleTapCheckbox)
+        y -= 34
+
+        // issue #29: отдельный хоткей смены регистра (последнее слово / выделение), как Alt+Break
+        // в Punto. Должен отличаться от триггера и от хоткея смены раскладки (движок игнорирует совпадения).
+        let caseLabel = NSTextField(labelWithString: L10n.settingsCaseHotkey)
+        caseLabel.frame = NSRect(x: 20, y: y, width: 150, height: 22)
+        view.addSubview(caseLabel)
+
+        let casePopup = NSPopUpButton(frame: NSRect(x: 175, y: y - 2, width: 255, height: 26))
+        populateCaseHotkeyPopup(casePopup)
+        casePopup.target = self
+        casePopup.action = #selector(caseHotkeyChanged)
+        view.addSubview(casePopup)
+        caseHotkeyPopup = casePopup
+        y -= 34
+
+        let caseRightOnlyCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerRightOnly, target: self, action: #selector(caseRightOnlyChanged))
+        caseRightOnlyCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
+        caseRightOnlyCheckbox.state = SettingsManager.shared.caseRightOnly ? .on : .off
+        view.addSubview(caseRightOnlyCheckbox)
+        y -= 26
+
+        let caseDoubleTapCheckbox = NSButton(checkboxWithTitle: L10n.settingsTriggerDoubleTap, target: self, action: #selector(caseDoubleTapChanged))
+        caseDoubleTapCheckbox.frame = NSRect(x: 40, y: y, width: 390, height: 22)
+        caseDoubleTapCheckbox.state = SettingsManager.shared.caseDoubleTap ? .on : .off
+        view.addSubview(caseDoubleTapCheckbox)
         y -= 32
 
         let triggerHint = NSTextField(wrappingLabelWithString: L10n.settingsTriggerHint)
@@ -465,6 +492,14 @@ final class SettingsWindowController {
         view.addSubview(wholeLineHint)
         y -= 47
 
+        // issue #27: показывать неактивирующую подсказку о защищённом вводе. По умолчанию ВКЛ.
+        let secureNoticeCheckbox = NSButton(checkboxWithTitle: L10n.settingsSecureNotice,
+                                            target: self, action: #selector(secureNoticeChanged))
+        secureNoticeCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
+        secureNoticeCheckbox.state = SettingsManager.shared.secureInputNoticeEnabled ? .on : .off
+        view.addSubview(secureNoticeCheckbox)
+        y -= 32
+
         // Debug log
         let debugCheckbox = NSButton(checkboxWithTitle: L10n.settingsDebugLog, target: self, action: #selector(debugLogChanged))
         debugCheckbox.frame = NSRect(x: 20, y: y, width: 420, height: 22)
@@ -630,6 +665,7 @@ final class SettingsWindowController {
         // issue #3: «занят триггером» в списке хоткея смены зависит от текущего триггера —
         // пере-populate, иначе метка устареет и можно выбрать хоткей = триггеру (молча мёртвый).
         if let p = switchHotkeyPopup { populateSwitchHotkeyPopup(p) }
+        if let p = caseHotkeyPopup { populateCaseHotkeyPopup(p) }   // issue #29: та же логика для хоткея регистра
     }
 
     /// issue #14: попап второго хоткея — «Выключен» + те же модификаторы/комбо (без Caps Lock).
@@ -681,6 +717,43 @@ final class SettingsWindowController {
     @objc private func switchHotkeyChanged(_ sender: NSPopUpButton) {
         SettingsManager.shared.switchHotkey = (sender.selectedItem?.representedObject as? String) ?? ""
         onTriggerChanged?()   // reconfigure перечитает и switchConfig
+        if let p = caseHotkeyPopup { populateCaseHotkeyPopup(p) }   // issue #29: хоткей регистра не должен совпасть со сменой раскладки
+    }
+
+    /// issue #29: список хоткеев смены регистра. Гасим совпадения с триггером И с хоткеем смены
+    /// раскладки — движок их всё равно игнорирует (один тап = одно действие).
+    private func populateCaseHotkeyPopup(_ popup: NSPopUpButton) {
+        populateSwitchHotkeyPopup(popup)   // те же пункты
+        popup.autoenablesItems = false
+        let taken: Set<String> = [SettingsManager.shared.triggerKey, SettingsManager.shared.switchHotkey]
+        for item in popup.menu?.items ?? [] {
+            let key = (item.representedObject as? String) ?? ""
+            if !key.isEmpty && taken.contains(key) {
+                item.isEnabled = false
+                if !item.title.hasSuffix(L10n.settingsSwitchHotkeyBusy) { item.title += L10n.settingsSwitchHotkeyBusy }
+            }
+        }
+        let current = SettingsManager.shared.caseHotkey
+        if let idx = popup.menu?.items.firstIndex(where: { ($0.representedObject as? String) == current }) {
+            popup.selectItem(at: idx)
+        } else {
+            popup.selectItem(at: 0)
+        }
+    }
+
+    @objc private func caseHotkeyChanged(_ sender: NSPopUpButton) {
+        SettingsManager.shared.caseHotkey = (sender.selectedItem?.representedObject as? String) ?? ""
+        onTriggerChanged?()
+    }
+
+    @objc private func caseDoubleTapChanged(_ sender: NSButton) {
+        SettingsManager.shared.caseDoubleTap = sender.state == .on
+        onTriggerChanged?()
+    }
+
+    @objc private func caseRightOnlyChanged(_ sender: NSButton) {
+        SettingsManager.shared.caseRightOnly = sender.state == .on
+        onTriggerChanged?()
     }
 
     @objc private func switchDoubleTapChanged(_ sender: NSButton) {
@@ -735,6 +808,10 @@ final class SettingsWindowController {
 
     @objc private func convertWholeLineChanged(_ sender: NSButton) {
         SettingsManager.shared.convertWholeLine = sender.state == .on
+    }
+
+    @objc private func secureNoticeChanged(_ sender: NSButton) {
+        SettingsManager.shared.secureInputNoticeEnabled = sender.state == .on
     }
 
     @objc private func debugLogChanged(_ sender: NSButton) {

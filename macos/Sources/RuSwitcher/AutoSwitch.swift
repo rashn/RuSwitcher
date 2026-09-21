@@ -6,10 +6,28 @@ import IOKit
 /// без сети и без бандла данных. ~0.1мс на проверку, 40+ языков.
 enum Dict {
     @MainActor private static let checker = NSSpellChecker.shared
+    /// Кэш списка словарей: availableLanguages ходит в AppleSpell — не дёргаем на каждое слово.
+    @MainActor private static var cachedLanguages: [String]?
 
     @MainActor static func isAvailable(_ lang: String) -> Bool {
         let two = String(lang.prefix(2))
-        return checker.availableLanguages.contains { String($0.prefix(2)) == two }
+        return languages().contains { String($0.prefix(2)) == two }
+    }
+
+    @MainActor private static func languages() -> [String] {
+        if let cached = cachedLanguages { return cached }
+        let langs = checker.availableLanguages
+        cachedLanguages = langs
+        return langs
+    }
+
+    /// Прогрев: первое обращение к NSSpellChecker поднимает XPC-процесс AppleSpell
+    /// (сотни мс на main) — без прогрева этот фриз пришёлся бы на первый пробел
+    /// пользователя после запуска. Вызывается отложенно из applicationDidFinishLaunching.
+    @MainActor static func warmUp() {
+        _ = languages()
+        _ = isValidWord("тест", lang: "ru")
+        _ = isValidWord("test", lang: "en")
     }
 
     /// true — слово есть в словаре языка (орфография корректна).

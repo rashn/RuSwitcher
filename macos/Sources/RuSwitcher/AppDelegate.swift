@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var updateCheckTimer: Timer?   // периодическая авто-проверка обновлений, пока приложение работает
     private var monitoringActive = false
     private var caretIndicator: CaretIndicator?   // issue #10: флаг у каретки (бета, по умолчанию OFF)
+    private let secureNotice = SecureInputNotice()  // issue #27: подсказка о защ. вводе без кражи фокуса
     private var lastFlagShown: String?            // идентичность раскладки для детекта смены (не title!)
     private var badgeCache: [String: NSImage] = [:]  // монохромные плашки, чтобы не перерисовывать 2с-опросом
 
@@ -33,6 +34,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // уважает настройку «Автоматически проверять обновления» (её можно снять, чтобы отключить).
         updateCheckTimer = Timer.scheduledTimer(withTimeInterval: 6 * 3600, repeats: true) { _ in
             Task { @MainActor in UpdateChecker.checkPeriodic() }
+        }
+        // Прогрев NSSpellChecker: первый чек поднимает XPC AppleSpell (сотни мс на main) —
+        // прогреваем в тихую паузу после старта, а не на первом пробеле пользователя.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            Task { @MainActor in Dict.warmUp() }
         }
     }
 
@@ -85,15 +91,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// выглядит как «приложение сломалось» (реальный кейс: пользователь мял триггер и лез в
     /// ioreg). Показываем разовое (троттлённое) объяснение с лечением.
     private func notifySecureInputPaused() {
+        guard SettingsManager.shared.secureInputNoticeEnabled else { return }
         if let last = lastSecureNoticeAt, Date().timeIntervalSince(last) < 180 { return }
         lastSecureNoticeAt = Date()
         let holder = AutoSwitchPolicy.secureInputHolderName() ?? L10n.securePausedUnknownApp
-        let alert = NSAlert()
-        alert.alertStyle = .informational
-        alert.messageText = L10n.securePausedTitle
-        alert.informativeText = String(format: L10n.securePausedBody, holder)
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
+        // issue #27: неактивирующая плашка вместо NSAlert.runModal() — модалка активировала
+        // приложение и уводила фокус из поля пароля (пользователь терял место в терминале).
+        secureNotice.show(title: L10n.securePausedTitle,
+                          body: String(format: L10n.securePausedBody, holder))
     }
 
     private func offerExceptionAfterUndo() {
@@ -419,6 +424,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.keyboardMonitor.markConverted()
             self.textConverter.clearState()
             self.updateStatusIcon()
+        }
+        // issue #29: хоткей смены регистра последнего слова / выделения. Раскладку не трогает,
+        // в защищённом поле — пас (приватность), как у триггера.
+        keyboardMonitor.onCaseHotkey = { [weak self] in
+            guard let self else { return }
+            guard !AutoSwitchPolicy.secureInputActive else { rslog("case: bail secure-input"); self.notifySecureInputPaused(); return }
+            // Скептик #29: те же гейты, что у onAltTap/onSwitchHotkey. Удалёнка — текст правит
+            // контролируемый инстанс (у нас нет своей раскладки для флипа, регистр просто пропускаем).
+            if AutoSwitchPolicy.shouldDeferToRemoteClient { rslog("case: bail remote-defer"); return }
+            // Spotlight: count-путь оставил бы лишнюю букву (issue #16), а AX там флейкует — не трогаем.
+            if SpotlightAX.isActive() { rslog("case: bail spotlight"); return }
+            // issue #29: смена регистра зеркалит триггер конверсии — уважает «Convert whole line»
+            // (запрос kobygold). Терминал → по буферу строки; обычное приложение → AX-выделение строки.
+            if SettingsManager.shared.convertWholeLine {
+                let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                if AutoSwitchPolicy.isTerminalApp(frontID) {
+                    if !self.keyboardMonitor.lineKeys.isEmpty {
+                        if self.textConverter.changeCaseLineBuffer(self.keyboardMonitor.lineKeys) { self.textConverter.clearState() }
+                        return   // непустой буфер строки — завершаем здесь (как onAltTap)
+                    }
+                    // пустой буфер → падаем на последнее слово ниже
+                } else {
+                    if self.textConverter.changeCaseLine() { self.textConverter.clearState() }
+                    return   // обычное приложение, whole-line — всегда завершаем здесь
+                }
+            }
+            // Скептик #29: НЕ markConverted() — буфер слова нужен, чтобы повторный тап циклил
+            // регистр. Чистим reconvert-состояние, иначе следующий реконверт сработал бы по
+            // устаревшим lastOriginal/lastConverted и испортил текст.
+            let keys = self.keyboardMonitor.currentWordKeys
+            if self.textConverter.changeCase(wordKeys: keys) {
+                self.textConverter.clearState()
+            }
         }
         updateStatusIcon()        // сначала выставляем флаг меню-бара, пока индикатора ещё нет
         syncCaretIndicator()      // затем создаём индикатор — без стартового ложного «попа»
