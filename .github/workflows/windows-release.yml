@@ -1,12 +1,11 @@
 name: windows-release
 
-# Builds, packages, (optionally) signs and publishes a Windows release.
+# Builds, signs and packages a Windows release.
 # Triggered by pushing a tag like `win-v0.9.0` (the Windows track is versioned separately from the
 # macOS `vX.Y.Z` tags). Publishing is therefore an explicit, human action: pushing the tag.
 #
-# Code signing is OPTIONAL and gated on a certificate secret being present (mirrors how the macOS
-# build only notarizes when credentials exist). Without a cert the release still ships, unsigned;
-# SmartScreen will warn until a cert is added (secrets WINDOWS_CERT_PFX_BASE64 + WINDOWS_CERT_PASSWORD).
+# Manual runs use SignPath's test-signing policy and only upload a workflow artifact. Tag builds use
+# release-signing and are published only after every executable has been signed successfully.
 on:
   push:
     tags:
@@ -18,15 +17,15 @@ on:
         required: true
 
 permissions:
+  actions: read
   contents: write
 
 jobs:
   release:
     runs-on: windows-latest
-    # `secrets` is NOT available in a step-level `if:` (it errors the whole run at parse time), but a
-    # job-level `env` MAY read secrets — so we hoist the "is a cert configured?" test here.
     env:
-      HAS_CERT: ${{ secrets.WINDOWS_CERT_PFX_BASE64 != '' }}
+      SIGNPATH_PROJECT_SLUG: RuSwitcher
+      SIGNPATH_SIGNING_POLICY: ${{ github.event_name == 'push' && 'release-signing' || 'test-signing' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,34 +53,67 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-x64/Release/RuSwitcher.exe -MaximumMiB 5
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/check_windows_binary_size.ps1 build/native-arm64/Release/RuSwitcher.exe -MaximumMiB 5
 
-      # --- optional code signing (only if a cert secret is configured) ---
-      - name: Import signing certificate
-        id: cert
-        if: env.HAS_CERT == 'true'
-        shell: pwsh
-        run: |
-          $pfx = "$env:RUNNER_TEMP\cert.pfx"
-          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT_B64))
-          "pfx=$pfx" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        env:
-          CERT_B64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      - name: Upload unsigned x64 executable
+        id: upload-unsigned-x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app-x64-${{ steps.ver.outputs.version }}
+          path: build/native-x64/Release/RuSwitcher.exe
+          if-no-files-found: error
+          retention-days: 1
 
-      - name: Sign exes
-        if: ${{ steps.cert.outputs.pfx != '' }}
+      - name: Sign x64 executable with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload-unsigned-x64.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: build/signed-x64
+
+      - name: Install signed x64 executable
         shell: pwsh
         run: |
-          # The SDK bin dir holds both versioned dirs (10.0.22621.0) AND legacy arch dirs (x64/x86/arm);
-          # a plain name-descending sort picks a letter dir → bogus path. Filter to versioned dirs.
-          $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
-                 Where-Object { $_.Name -match '^\d+\.\d+\.\d+' } |
-                 Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
-          $signtool = Join-Path $sdk.FullName "x64\signtool.exe"
-          foreach ($exe in @("build\native-x64\Release\RuSwitcher.exe","build\native-arm64\Release\RuSwitcher.exe")) {
-            & $signtool sign /f "${{ steps.cert.outputs.pfx }}" /p "$env:CERT_PW" `
-              /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $exe
+          $signed = @(Get-ChildItem build\signed-x64 -Recurse -File -Filter RuSwitcher.exe)
+          if ($signed.Count -ne 1) { throw "Expected one signed x64 executable, found $($signed.Count)" }
+          if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
+            throw 'SignPath returned an x64 executable without an Authenticode signature'
           }
-        env:
-          CERT_PW: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          Copy-Item $signed[0].FullName build\native-x64\Release\RuSwitcher.exe -Force
+
+      - name: Upload unsigned ARM64 executable
+        id: upload-unsigned-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-app-arm64-${{ steps.ver.outputs.version }}
+          path: build/native-arm64/Release/RuSwitcher.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign ARM64 executable with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload-unsigned-arm64.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: build/signed-arm64
+
+      - name: Install signed ARM64 executable
+        shell: pwsh
+        run: |
+          $signed = @(Get-ChildItem build\signed-arm64 -Recurse -File -Filter RuSwitcher.exe)
+          if ($signed.Count -ne 1) { throw "Expected one signed ARM64 executable, found $($signed.Count)" }
+          if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
+            throw 'SignPath returned an ARM64 executable without an Authenticode signature'
+          }
+          Copy-Item $signed[0].FullName build\native-arm64\Release\RuSwitcher.exe -Force
 
       - name: Build installer (Inno Setup)
         shell: pwsh
@@ -105,20 +137,69 @@ jobs:
           # ISCC writes to windows\installer\dist\
           Get-ChildItem windows\installer\dist
 
-      - name: Sign installer
-        if: ${{ steps.cert.outputs.pfx != '' }}
+      - name: Upload unsigned x64 installer
+        id: upload-unsigned-installer-x64
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer-x64-${{ steps.ver.outputs.version }}
+          path: windows/installer/dist/RuSwitcher-Setup-${{ steps.ver.outputs.version }}-x64.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign x64 installer with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer-x64.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: build/signed-installer-x64
+
+      - name: Install signed x64 installer
         shell: pwsh
         run: |
-          $sdk = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Directory |
-                 Where-Object { $_.Name -match '^\d+\.\d+\.\d+' } |
-                 Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
-          $signtool = Join-Path $sdk.FullName "x64\signtool.exe"
-          Get-ChildItem windows\installer\dist\*.exe | ForEach-Object {
-            & $signtool sign /f "${{ steps.cert.outputs.pfx }}" /p "$env:CERT_PW" `
-              /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $_.FullName
+          $name = 'RuSwitcher-Setup-${{ steps.ver.outputs.version }}-x64.exe'
+          $signed = @(Get-ChildItem build\signed-installer-x64 -Recurse -File -Filter $name)
+          if ($signed.Count -ne 1) { throw "Expected one signed x64 installer, found $($signed.Count)" }
+          if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
+            throw 'SignPath returned an x64 installer without an Authenticode signature'
           }
-        env:
-          CERT_PW: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          Copy-Item $signed[0].FullName (Join-Path windows\installer\dist $name) -Force
+
+      - name: Upload unsigned ARM64 installer
+        id: upload-unsigned-installer-arm64
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-installer-arm64-${{ steps.ver.outputs.version }}
+          path: windows/installer/dist/RuSwitcher-Setup-${{ steps.ver.outputs.version }}-arm64.exe
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Sign ARM64 installer with SignPath
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ env.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ env.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer-arm64.outputs.artifact-id }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 1800
+          output-artifact-directory: build/signed-installer-arm64
+
+      - name: Install signed ARM64 installer
+        shell: pwsh
+        run: |
+          $name = 'RuSwitcher-Setup-${{ steps.ver.outputs.version }}-arm64.exe'
+          $signed = @(Get-ChildItem build\signed-installer-arm64 -Recurse -File -Filter $name)
+          if ($signed.Count -ne 1) { throw "Expected one signed ARM64 installer, found $($signed.Count)" }
+          if (-not (Get-AuthenticodeSignature $signed[0].FullName).SignerCertificate) {
+            throw 'SignPath returned an ARM64 installer without an Authenticode signature'
+          }
+          Copy-Item $signed[0].FullName (Join-Path windows\installer\dist $name) -Force
 
       - name: Stage assets + checksums
         id: assets
@@ -138,7 +219,16 @@ jobs:
           $lines | Out-File -Encoding ascii assets\SHA256SUMS.txt
           Get-Content assets\SHA256SUMS.txt
 
+      - name: Upload test-signed assets
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: RuSwitcher-${{ steps.ver.outputs.version }}-test-signed
+          path: assets/
+          if-no-files-found: error
+
       - name: Create GitHub release
+        if: github.event_name == 'push'
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
