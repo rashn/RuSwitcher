@@ -649,6 +649,7 @@ final class SettingsWindowController {
         ]
         // issue #12: комбо двух модификаторов (привычный по Windows стиль Alt+Shift).
         let comboItems: [(key: String, title: String)] = [
+            ("option+shift", "⌥ + ⇧  (Option + Shift)"),   // discussion #32: виндовый дефолт
             ("command+shift", "⌘ + ⇧  (Command + Shift)"),
             ("control+shift", "⌃ + ⇧  (Control + Shift)"),
             ("command+option", "⌘ + ⌥  (Command + Option)"),
@@ -730,6 +731,7 @@ final class SettingsWindowController {
             ("shift", "Shift ⇧"),
         ]
         let comboItems: [(key: String, title: String)] = [
+            ("option+shift", "⌥ + ⇧  (Option + Shift)"),   // discussion #32: виндовый дефолт
             ("command+shift", "⌘ + ⇧  (Command + Shift)"),
             ("control+shift", "⌃ + ⇧  (Control + Shift)"),
             ("command+option", "⌘ + ⌥  (Command + Option)"),

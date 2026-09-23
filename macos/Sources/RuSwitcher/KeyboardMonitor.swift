@@ -76,7 +76,8 @@ struct TriggerConfig {
     /// мусор в defaults дублировал бы дефолтный триггер (ревью-находка).
     static func switchHotkey() -> TriggerConfig? {
         let known: Set<String> = ["option", "command", "control", "shift",
-                                  "command+shift", "control+shift", "command+option", "control+option"]
+                                  "command+shift", "control+shift", "command+option", "control+option",
+                                  "option+shift"]
         let s = SettingsManager.shared
         let key = s.switchHotkey
         guard known.contains(key), key != s.triggerKey else { return nil }
@@ -87,7 +88,8 @@ struct TriggerConfig {
     /// конверсии, и от хоткея смены раскладки — иначе один тап делал бы два действия.
     static func caseHotkey() -> TriggerConfig? {
         let known: Set<String> = ["option", "command", "control", "shift",
-                                  "command+shift", "control+shift", "command+option", "control+option"]
+                                  "command+shift", "control+shift", "command+option", "control+option",
+                                  "option+shift"]
         let s = SettingsManager.shared
         let key = s.caseHotkey
         guard known.contains(key), key != s.triggerKey, key != s.switchHotkey else { return nil }
@@ -105,6 +107,9 @@ struct TriggerConfig {
         case "control+shift":  kind = .combo(.maskControl, .maskShift)
         case "command+option": kind = .combo(.maskCommand, .maskAlternate)
         case "control+option": kind = .combo(.maskControl, .maskAlternate)
+        // discussion #32: ⌥+⇧ — виндовый дефолт; тап-детект комбо (любой keyDown между
+        // нажатием и отпусканием сбрасывает взвод) исключает конфликт с ⌥⇧+буква/стрелки.
+        case "option+shift":   kind = .combo(.maskAlternate, .maskShift)
         // ТЕХДОЛГ: нативный Caps Lock убран из UI (нестабилен — HID-дебаунс/тоггл,
         // нужен HID-драйвер уровня Karabiner). Код consume-пути оставлен на будущее.
         case "capsLock": kind = .capsLock
