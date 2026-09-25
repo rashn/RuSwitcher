@@ -14,6 +14,7 @@
 </p>
 
 <p align="center">
+  <a href="https://ruswitcher.app/?utm_source=github&utm_medium=readme"><img src="https://img.shields.io/badge/website-ruswitcher.app-2A5EC7?style=flat-square" alt="Website: ruswitcher.app"></a>
   <a href="https://github.com/rashn/RuSwitcher/releases/latest"><img src="https://img.shields.io/github/v/release/rashn/RuSwitcher?style=flat-square" alt="Release"></a>
   <a href="https://formulae.brew.sh/cask/ruswitcher"><img src="https://img.shields.io/homebrew/cask/v/ruswitcher?style=flat-square&label=homebrew" alt="Homebrew Cask"></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/rashn/RuSwitcher?style=flat-square" alt="License"></a>
@@ -26,9 +27,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/rashn/RuSwitcher/releases/latest"><b>⬇️ Download for macOS</b></a>
+  <a href="https://ruswitcher.app/en/download/?utm_source=github&utm_medium=readme"><b>⬇️ Download for macOS</b></a>
   &nbsp;·&nbsp;
-  <a href="https://github.com/rashn/RuSwitcher/releases/latest">Скачать для macOS</a>
+  <a href="https://ruswitcher.app/download/?utm_source=github&utm_medium=readme">Скачать для macOS</a>
   &nbsp;·&nbsp;
   Homebrew: <code>brew install --cask ruswitcher</code>
 </p>
@@ -120,7 +121,7 @@ To upgrade later: `brew upgrade --cask ruswitcher`.
 
 **Download DMG**
 
-Grab the latest `.dmg` from [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), open it and drag RuSwitcher to Applications.
+Grab the latest `.dmg` from [**ruswitcher.app**](https://ruswitcher.app/en/download/?utm_source=github&utm_medium=readme) or from [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), open it and drag RuSwitcher to Applications.
 
 **Build from source**
 
@@ -265,7 +266,7 @@ brew install --cask ruswitcher
 
 **Скачать DMG**
 
-Скачайте последний `.dmg` со страницы [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), откройте и перетащите RuSwitcher в «Программы».
+Скачайте последний `.dmg` с сайта [**ruswitcher.app**](https://ruswitcher.app/download/?utm_source=github&utm_medium=readme) или со страницы [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), откройте и перетащите RuSwitcher в "Программы".
 
 **Сборка из исходников**
 
