@@ -11,8 +11,7 @@
              original-filename="RuSwitcher.exe"
              product-name="RuSwitcher"
              product-version="${version}">
-      <authenticode-sign description="RuSwitcher"
-                         description-url="https://github.com/rashn/RuSwitcher" />
+      <authenticode-sign />
     </pe-file>
     <pe-file path="RuSwitcher-${version}-win-arm64.exe"
              company-name="RuSwitcher"
@@ -21,8 +20,7 @@
              original-filename="RuSwitcher.exe"
              product-name="RuSwitcher"
              product-version="${version}">
-      <authenticode-sign description="RuSwitcher"
-                         description-url="https://github.com/rashn/RuSwitcher" />
+      <authenticode-sign />
     </pe-file>
   </zip-file>
 </artifact-configuration>
