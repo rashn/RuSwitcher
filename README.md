@@ -170,9 +170,15 @@ If you find RuSwitcher useful:
 - [**Boosty**](https://boosty.to/ruswitcher) — donate
 - **Star** this repo on GitHub
 
-### Code signing
+### Code signing policy
 
-Free code signing on Windows provided by [SignPath.io](https://about.signpath.io/), certificate by [SignPath Foundation](https://signpath.org/).
+Free code signing provided by [SignPath.io](https://about.signpath.io/), certificate by
+[SignPath Foundation](https://signpath.org/).
+
+- **Committer and reviewer:** [Rashid Nasibulin](https://github.com/rashn)
+- **Signing approver:** [Rashid Nasibulin](https://github.com/rashn)
+- **Privacy:** This program will not transfer any information to other networked systems unless
+  specifically requested by the user or the person installing or operating it.
 
 ### License
 
@@ -315,9 +321,15 @@ cp -R RuSwitcher.app /Applications/
 - [**Boosty**](https://boosty.to/ruswitcher) — донат
 - **Star** на GitHub
 
-### Подпись кода
+### Политика подписи кода
 
-Бесплатную подпись Windows-сборок предоставляет [SignPath.io](https://about.signpath.io/), сертификат — [SignPath Foundation](https://signpath.org/).
+Бесплатную подпись предоставляет [SignPath.io](https://about.signpath.io/), сертификат —
+[SignPath Foundation](https://signpath.org/).
+
+- **Разработчик и ревьюер:** [Рашид Насибулин](https://github.com/rashn)
+- **Подтверждение запросов на подпись:** [Рашид Насибулин](https://github.com/rashn)
+- **Конфиденциальность:** программа не передаёт информацию другим сетевым системам, если это явно
+  не запросил пользователь либо человек, устанавливающий или запускающий программу.
 
 ### Лицензия
 
