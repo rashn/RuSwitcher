@@ -11,6 +11,9 @@
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0"
 #endif
+#ifndef MyAppNumericVersion
+  #define MyAppNumericVersion "0.0.0.0"
+#endif
 #ifndef SourceExe
   #define SourceExe "..\..\.artifacts\native-x64\RuSwitcher.exe"
 #endif
@@ -22,6 +25,7 @@
 #define MyAppPublisher "RuSwitcher"
 #define MyAppURL "https://github.com/rashn/RuSwitcher"
 #define MyAppExeName "RuSwitcher.exe"
+#define MyAppCopyright "Copyright (c) 2026 RuSwitcher contributors"
 
 [Setup]
 ; A stable AppId ties upgrades/uninstalls together across versions — never change it.
@@ -29,6 +33,7 @@ AppId={{A3F5C1E2-7B94-4D6A-9E31-2C8F5A1B6D40}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
+AppCopyright={#MyAppCopyright}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}/releases
@@ -38,6 +43,15 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=dist
 OutputBaseFilename=RuSwitcher-Setup-{#MyAppVersion}-{#MyAppArch}
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoCopyright={#MyAppCopyright}
+VersionInfoDescription={#MyAppName} Setup
+VersionInfoOriginalFileName=RuSwitcher-Setup.exe
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppNumericVersion}
+VersionInfoProductTextVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppNumericVersion}
+VersionInfoTextVersion={#MyAppVersion}
 SetupIconFile=..\src\RuSwitcher.Win\Assets\RuSwitcher.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2

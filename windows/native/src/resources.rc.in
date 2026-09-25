@@ -1,12 +1,12 @@
 #include <windows.h>
 
-1 ICON "../../src/RuSwitcher.Win/Assets/RuSwitcher.ico"
+1 ICON "@RUSWITCHER_ICON_PATH@"
 
 1 VERSIONINFO
- FILEVERSION 0,10,0,1
- PRODUCTVERSION 0,10,0,1
+ FILEVERSION @RUSWITCHER_VERSION_COMMA@
+ PRODUCTVERSION @RUSWITCHER_VERSION_COMMA@
  FILEFLAGSMASK 0x3fL
- FILEFLAGS VS_FF_PRERELEASE
+ FILEFLAGS @RUSWITCHER_FILE_FLAGS@
  FILEOS VOS_NT_WINDOWS32
  FILETYPE VFT_APP
 BEGIN
@@ -16,11 +16,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "RuSwitcher"
             VALUE "FileDescription", "RuSwitcher for Windows"
-            VALUE "FileVersion", "0.10.0-beta.1"
+            VALUE "FileVersion", "@RUSWITCHER_VERSION@"
             VALUE "InternalName", "RuSwitcher"
+            VALUE "LegalCopyright", "Copyright (c) 2026 RuSwitcher contributors"
             VALUE "OriginalFilename", "RuSwitcher.exe"
             VALUE "ProductName", "RuSwitcher"
-            VALUE "ProductVersion", "0.10.0-beta.1"
+            VALUE "ProductVersion", "@RUSWITCHER_VERSION@"
         END
     END
     BLOCK "VarFileInfo"

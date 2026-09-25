@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<artifact-configuration xmlns="http://signpath.io/artifact-configuration/v1">
+  <parameters>
+    <parameter name="version" required="true" />
+  </parameters>
+  <zip-file>
+    <pe-file path="RuSwitcher-Setup-${version}-*.exe"
+             company-name="RuSwitcher"
+             copyright="Copyright (c) 2026 RuSwitcher contributors"
+             file-version="${version}"
+             original-filename="RuSwitcher-Setup.exe"
+             product-name="RuSwitcher"
+             product-version="${version}">
+      <authenticode-sign description="RuSwitcher Setup"
+                         description-url="https://github.com/rashn/RuSwitcher" />
+    </pe-file>
+  </zip-file>
+</artifact-configuration>
