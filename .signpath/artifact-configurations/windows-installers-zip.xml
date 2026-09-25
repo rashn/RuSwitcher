@@ -4,22 +4,13 @@
     <parameter name="version" required="true" />
   </parameters>
   <zip-file>
-    <pe-file path="RuSwitcher-Setup-${version}-x64.exe"
-             company-name="RuSwitcher"
-             copyright="Copyright (c) 2026 RuSwitcher contributors"
-             file-version="${version}"
-             original-filename="RuSwitcher-Setup.exe"
-             product-name="RuSwitcher"
-             product-version="${version}">
+    <!-- Inno Setup pads string-version resource values with spaces. Restrict the
+         generated installer by its exact release filename instead; the embedded
+         application binaries are checked separately by windows-apps-zip. -->
+    <pe-file path="RuSwitcher-Setup-${version}-x64.exe">
       <authenticode-sign />
     </pe-file>
-    <pe-file path="RuSwitcher-Setup-${version}-arm64.exe"
-             company-name="RuSwitcher"
-             copyright="Copyright (c) 2026 RuSwitcher contributors"
-             file-version="${version}"
-             original-filename="RuSwitcher-Setup.exe"
-             product-name="RuSwitcher"
-             product-version="${version}">
+    <pe-file path="RuSwitcher-Setup-${version}-arm64.exe">
       <authenticode-sign />
     </pe-file>
   </zip-file>
