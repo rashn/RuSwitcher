@@ -123,13 +123,13 @@ To upgrade later: `brew upgrade --cask ruswitcher`.
 
 Grab the latest `.dmg` from [**ruswitcher.app**](https://ruswitcher.app/en/download/?utm_source=github&utm_medium=readme) or from [**Releases**](https://github.com/rashn/RuSwitcher/releases/latest), open it and drag RuSwitcher to Applications.
 
-**Build from source**
+**Build from source (for macOS)**
 
 ```bash
 git clone https://github.com/rashn/RuSwitcher.git
 cd RuSwitcher
-bash build_app.sh
-cp -R RuSwitcher.app /Applications/
+RS_SIGN_ID="-" ./macos/build_app.sh
+cp -R macos/RuSwitcher.app /Applications/
 ```
 
 Requires macOS 13+ and Xcode Command Line Tools.

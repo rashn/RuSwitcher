@@ -4,8 +4,6 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="RuSwitcher"
 APP_BUNDLE="$PROJECT_DIR/$APP_NAME.app"
-# Universal-сборка кладёт продукт сюда (а не в .build/release)
-BUILD_DIR="$PROJECT_DIR/.build/apple/Products/Release"
 # version.json живёт в КОРНЕ репозитория (живой фид обновлений) — не переносить!
 # RS_VERSION_JSON переопределяет источник версии (для бета-сборок → version-beta.json).
 VERSION_JSON="${RS_VERSION_JSON:-$PROJECT_DIR/../version.json}"
@@ -24,10 +22,15 @@ fi
 
 echo "=== Building $APP_NAME v$SHORT_VERSION (build $BUILD_VERSION) ==="
 
-# 1. Собираем release — universal (arm64 + x86_64), чтобы работало и на Intel-маках
-echo "→ swift build -c release --arch arm64 --arch x86_64 (universal)..."
 cd "$PROJECT_DIR"
-swift build -c release --arch arm64 --arch x86_64
+
+# 1. Собираем release — universal (arm64 + x86_64), чтобы работало и на Intel-маках
+SWIFT_BUILD_FLAGS="-c release --arch arm64 --arch x86_64"
+echo "→ swift build $SWIFT_BUILD_FLAGS (universal)..."
+# shellcheck disable=SC2086
+swift build $SWIFT_BUILD_FLAGS
+# shellcheck disable=SC2086
+BUILD_DIR=$(swift build --show-bin-path $SWIFT_BUILD_FLAGS 2>/dev/null)
 
 # 2. Создаём .app bundle
 echo "→ Creating app bundle..."
