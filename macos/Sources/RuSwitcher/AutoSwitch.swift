@@ -265,6 +265,16 @@ enum AutoSwitchPolicy {
         return set.contains(typed.lowercased()) || set.contains(converted.lowercased())
     }
 
+    /// Незаконченное слово ведёт к запрещённому: любое слово из never-convert начинается с
+    /// набранного или с его конверсии. Нужно конверсии на лету — она решает по префиксу, и
+    /// точное сравнение (isDeniedWord) запрет бы не поймало: до самого слова дело не дойдёт.
+    static func isDeniedPrefix(_ typed: String, _ converted: String) -> Bool {
+        let set = SettingsManager.shared.deniedWordsSet
+        guard !set.isEmpty else { return false }
+        let t = typed.lowercased(), c = converted.lowercased()
+        return set.contains { $0.hasPrefix(t) || $0.hasPrefix(c) }
+    }
+
     /// Слово в списке always-convert — матчим по СКОНВЕРТИРОВАННОЙ (целевой) форме.
     /// В список кладётся «целевое» слово (что должно получиться), а не мусор раскладки —
     /// иначе правильно набранное слово конвертилось бы обратно (пинг-понг).
