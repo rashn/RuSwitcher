@@ -64,13 +64,16 @@ final class SettingsWindowController {
         tabView.addTabViewItem(createAboutTab())
 
         win.contentView = tabView
+        // Вкладок пять, и на многих языках названия в 480 pt не влезали (#45).
+        tabView.allowsTruncatedLabels = false
+        let width = max(480, ceil(tabView.minimumSize.width) + 8)
         // Высота окна — по самой высокой вкладке (после fitToText вкладки разной высоты на разных
         // языках). Не выше экрана: на маленьком экране низ самой длинной вкладки уйдёт под край.
         let chrome = tabView.bounds.height - tabView.contentRect.height
         let tallest = tabView.tabViewItems.compactMap { $0.view?.subviews.first?.frame.height }.max() ?? 700
         var height = tallest + chrome
         if let screen = NSScreen.main { height = min(height, screen.visibleFrame.height - 60) }
-        win.setContentSize(NSSize(width: 480, height: height))
+        win.setContentSize(NSSize(width: width, height: height))
         win.center()
         win.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
@@ -116,19 +119,14 @@ final class SettingsWindowController {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
         scroll.documentView = doc
-        scroll.autoresizingMask = [.width, .height]
-        let outer = NSView(frame: scroll.frame)
-        outer.autoresizingMask = [.width, .height]
-        outer.autoresizesSubviews = true
+        let outer = TabContentContainer(frame: scroll.frame)
+        outer.fillsHeight = true
         outer.addSubview(scroll)
         return outer
     }
 
     private func topAligned(_ content: NSView) -> NSView {
-        let outer = NSView(frame: content.frame)
-        outer.autoresizingMask = [.width, .height]
-        outer.autoresizesSubviews = true
-        content.autoresizingMask = [.minYMargin]
+        let outer = TabContentContainer(frame: content.frame)
         outer.addSubview(content)
         return outer
     }
@@ -768,17 +766,22 @@ final class SettingsWindowController {
         let view = NSView(frame: NSRect(x: 0, y: 0, width: 460, height: 360))
         var y: CGFloat = 310
 
+        let icon = NSImageView(image: NSApp.applicationIconImage)
+        icon.imageScaling = .scaleProportionallyUpOrDown
+        icon.frame = NSRect(x: 16, y: 258, width: 84, height: 84)
+        view.addSubview(icon)
+
         // Название и версия
         let titleLabel = NSTextField(labelWithString: "RuSwitcher")
         titleLabel.font = .boldSystemFont(ofSize: 20)
-        titleLabel.frame = NSRect(x: 20, y: y, width: 420, height: 28)
+        titleLabel.frame = NSRect(x: 108, y: y, width: 332, height: 28)
         view.addSubview(titleLabel)
         y -= 25
 
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
         let devTag = Bundle.main.infoDictionary?["RSDevTag"] as? String ?? ""
         let versionLabel = NSTextField(labelWithString: "v\(version)\(devTag) — \(L10n.settingsVersion)")
-        versionLabel.frame = NSRect(x: 20, y: y, width: 420, height: 20)
+        versionLabel.frame = NSRect(x: 108, y: y, width: 332, height: 20)
         versionLabel.font = .systemFont(ofSize: 12)
         versionLabel.textColor = .secondaryLabelColor
         view.addSubview(versionLabel)
@@ -792,7 +795,7 @@ final class SettingsWindowController {
             .underlineStyle: NSUnderlineStyle.single.rawValue,
             .font: NSFont.systemFont(ofSize: 12),
         ])
-        siteLink.frame = NSRect(x: 9, y: y, width: 110, height: 18)   // у кнопки без рамки ~11 pt поля: текст ровно под заголовком
+        siteLink.frame = NSRect(x: 97, y: y, width: 110, height: 18)   // у кнопки без рамки ~11 pt поля: текст ровно под заголовком
         view.addSubview(siteLink)
         y -= 40
 
@@ -1293,4 +1296,24 @@ final class SettingsWindowController {
 /// Перевёрнутые координаты: документ прокрутки начинается сверху (3.5.0b).
 private final class FlippedView: NSView {
     override var isFlipped: Bool { true }
+}
+
+/// Вид вкладки: блок фиксированной ширины по центру и у верхнего края. Окно бывает шире блока
+/// (длинные названия вкладок), а NSTabView растягивает вид на всю высоту окна.
+private final class TabContentContainer: NSView {
+    var fillsHeight = false
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        autoresizingMask = [.width, .height]
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) не используется") }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        guard let content = subviews.first else { return }
+        let x = max(0, floor((bounds.width - content.frame.width) / 2))
+        let height = fillsHeight ? bounds.height : content.frame.height
+        content.frame = NSRect(x: x, y: bounds.height - height, width: content.frame.width, height: height)
+    }
 }

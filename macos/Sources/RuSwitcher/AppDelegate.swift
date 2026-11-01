@@ -217,6 +217,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
+        // Системное окно запроса macOS показывает один раз: закрыл или не заметил — и приложение
+        // молча не работает. Поэтому со второго раза объясняем сами.
+        let settings = SettingsManager.shared
+        if interactive || settings.permissionsPrompted {
+            showPermissionsMissingAlert(accessibility: acc)
+        } else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
+                guard let self, !Self.permissionsGranted else { return }
+                self.showPermissionsMissingAlert(accessibility: AXIsProcessTrusted())
+            }
+        }
+        settings.permissionsPrompted = true
+
         // Первый запуск — обычный визард
         if acc {
             showStep_InputMonitoring()
@@ -224,6 +237,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         showStep_Accessibility()
+    }
+
+    private static var permissionsGranted: Bool { AXIsProcessTrusted() && CGPreflightListenEventAccess() }
+
+    /// Нет разрешений и системного окна запроса больше не будет: ведём в нужный раздел настроек.
+    private func showPermissionsMissingAlert(accessibility: Bool) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = L10n.permissionsMissingTitle
+        alert.informativeText = L10n.permissionsMissingText
+        alert.addButton(withTitle: L10n.permissionsMissingOpen)
+        alert.addButton(withTitle: L10n.permissionsMissingLater)
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let pane = accessibility ? "Privacy_ListenEvent" : "Privacy_Accessibility"
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// Подтверждение при ручной проверке, когда все разрешения уже выданы
@@ -975,6 +1006,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let verItem = NSMenuItem(title: "RuSwitcher \(ver)\(devTag)", action: nil, keyEquivalent: "")
         verItem.isEnabled = false
         menu.addItem(verItem)
+        let missingItem = NSMenuItem(title: L10n.menuPermissionsMissing, action: #selector(recheckPermissions), keyEquivalent: "")
+        missingItem.target = self
+        missingItem.tag = Self.permissionsItemTag
+        missingItem.isHidden = Self.permissionsGranted
+        menu.addItem(missingItem)
         menu.addItem(NSMenuItem.separator())
 
         // Список раскладок как в системном меню ввода: флаг + имя, галочка на текущей,
@@ -1077,6 +1113,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Метка пунктов-раскладок, чтобы находить и обновлять их группу в меню.
     private static let layoutItemTag = 741
+    private static let permissionsItemTag = 742
 
     /// Пункты списка раскладок: «флаг + локализованное имя», галочка на текущей.
     private func layoutMenuItems() -> [NSMenuItem] {
@@ -1099,6 +1136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// а текущую меняют и мимо нас — системным хоткеем).
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === statusItem.menu else { return }
+        menu.item(withTag: Self.permissionsItemTag)?.isHidden = Self.permissionsGranted
         let insertAt = menu.items.firstIndex { $0.tag == Self.layoutItemTag } ?? 2
         for old in menu.items where old.tag == Self.layoutItemTag { menu.removeItem(old) }
         for (offset, item) in layoutMenuItems().enumerated() {

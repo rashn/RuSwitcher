@@ -9,6 +9,9 @@ final class TextConverter {
     private var lastBoundaryCount = 0
     private var savedClipboardItems: [NSPasteboardItem]?
     private var clipboardRestoreWork: DispatchWorkItem?
+    /// Буфер реально менялся: выделение, прочитанное через AX, его не трогает, и при отказе
+    /// от конверсии переписывать нечего.
+    private var clipboardDirty = false
     private var isConverting = false
     /// Очередь для инжекта нажатий буферного движка — чтобы usleep не блокировал
     /// main-поток, на котором висит event tap (иначе тап голодает → лаги/потери нажатий).
@@ -182,9 +185,9 @@ final class TextConverter {
                      skipIfInlineCompletion: Bool = false) -> Bool {
         // Ревью M7: фокус не в тексте (список Finder с быстрым поиском по имени, таблица) —
         // Backspace и вставка ушли бы не туда. Только отдаём клавишу.
-        if let k = repostKey, let role = focusedRole(), Self.nonTextRoles.contains(role) {
+        if let k = repostKey, focusIsNotText() {
             injectQueue.async { [weak self] in self?.simKey(keyCode: k.code, flags: k.flags) }
-            rslog("replaceTail: focus role \(role) — key passed through")
+            rslog("replaceTail: focus not in text — key passed through")
             return false
         }
         guard !isConverting else {
@@ -246,7 +249,7 @@ final class TextConverter {
         simKey(keyCode: KC.left, flags: [.maskShift, .maskCommand])
         usleep(60_000)
         if !focusedSelectionIsEmpty() {
-            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
+            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0, wholeLine: true)
             if !ok { simKey(keyCode: KC.right, flags: []) }   // снять выделение (оно есть — стрелка не двигает каретку лишнего)
             return ok
         }
@@ -258,7 +261,7 @@ final class TextConverter {
         simKey(keyCode: KC.right, flags: [.maskShift, .maskCommand])
         usleep(60_000)
         if !focusedSelectionIsEmpty() {
-            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0)
+            let ok = convertViaClipboard(wordLength: 0, prevWordLength: 0, boundaryCount: 0, wholeLine: true)
             if !ok { simKey(keyCode: KC.left, flags: []) }
             return ok
         }
@@ -307,8 +310,18 @@ final class TextConverter {
     /// или сбой AX — считаем текстом (Electron, Qt часто отдают пусто).
     private static let nonTextRoles: Set<String> = [
         "AXList", "AXOutline", "AXTable", "AXBrowser", "AXGrid", "AXButton",
-        "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenu", "AXMenuItem", "AXScrollArea",
+        "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXMenu", "AXMenuItem",
     ]
+
+    /// Enter/Tab нельзя заменять перепечаткой. AXScrollArea считается не текстом только в
+    /// Finder (вид значками): в Outlook так выглядит тело письма, и там Enter не срабатывал.
+    private func focusIsNotText() -> Bool {
+        guard let role = focusedRole() else { return false }
+        if role == "AXScrollArea" {
+            return NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder"
+        }
+        return Self.nonTextRoles.contains(role)
+    }
 
     /// Выделенный текст через AX: "" — выделения точно нет, nil — приложение его не отдаёт.
     func selectedTextAX() -> String? {
@@ -405,13 +418,41 @@ final class TextConverter {
         return true
     }
 
-    /// Вариант регистра по индексу цикла: 0 — ВЕРХНИЙ, 1 — нижний, 2 — Заглавный (Title).
+    /// Вариант регистра по индексу цикла: 0 — ВЕРХНИЙ, 1 — нижний, 2 — С заглавной.
     private static func caseVariant(_ s: String, _ i: Int) -> String {
         switch ((i % 3) + 3) % 3 {
         case 0:  return s.uppercased()
         case 1:  return s.lowercased()
-        default: return s.capitalized
+        default: return capitalizedVariant(s)
         }
+    }
+
+    /// Одно слово — с заглавной буквы. Несколько слов — как в предложении: заглавные только
+    /// в начале текста и после . ! ? … (#38).
+    nonisolated static func capitalizedVariant(_ s: String) -> String {
+        guard s.contains(where: { $0.isWhitespace }) else { return s.capitalized }
+        var out = ""
+        var capitalizeNext = true
+        var afterStop = false          // знак конца предложения считается только перед пробелом: «т.е.»
+        for ch in s.lowercased() {
+            if capitalizeNext, ch.isLetter {
+                out += ch.uppercased()
+                capitalizeNext = false
+                afterStop = false
+                continue
+            }
+            out.append(ch)
+            if ch.isNewline || (afterStop && ch.isWhitespace) {
+                capitalizeNext = true
+                afterStop = false
+            } else if ".!?…".contains(ch) {
+                afterStop = true
+            } else if ch.isLetter || ch.isNumber {
+                capitalizeNext = false
+                afterStop = false
+            }
+        }
+        return out
     }
 
     /// Сменить регистр последнего набранного слова (буфер) или выделения (clipboard). Раскладку
@@ -438,7 +479,7 @@ final class TextConverter {
         var ok = false
         defer { if !ok { restoreClipboardNow() }; isConverting = false }
 
-        guard let text = tryCopy(pasteboard), !text.isEmpty,
+        guard let text = readSelection(pasteboard), !text.isEmpty,
               text.contains(where: { $0.isLetter }) else { return false }
         let changed = TextConverter.nextCaseFromCurrent(text)
         guard changed != text else { return false }
@@ -455,8 +496,8 @@ final class TextConverter {
         let letters = s.filter { $0.isLetter }
         if letters.allSatisfy({ $0.isLowercase }) { return s.uppercased() }
         if letters.allSatisfy({ $0.isUppercase }) {
-            let cap = s.capitalized
-            return cap == s ? s.lowercased() : cap   // односимвольные слова: capitalized==s → идём в нижний
+            let cap = capitalizedVariant(s)
+            return cap == s ? s.lowercased() : cap   // односимвольные слова: с заглавной == s → идём в нижний
         }
         return s.lowercased()
     }
@@ -605,10 +646,11 @@ final class TextConverter {
 
     /// Конвертация через буфер обмена (фолбэк: выделенный мышью текст и т.п.).
     /// Сначала проверяет выделение, потом пробует слово по счётчику.
-    func convertViaClipboard(wordLength: Int, prevWordLength: Int, boundaryCount: Int) -> Bool {
-        gated { convertViaClipboardImpl(wordLength: wordLength, prevWordLength: prevWordLength, boundaryCount: boundaryCount) }
+    /// wholeLine — выделение сделали мы сами (режим «вся строка»), а не пользователь.
+    func convertViaClipboard(wordLength: Int, prevWordLength: Int, boundaryCount: Int, wholeLine: Bool = false) -> Bool {
+        gated { convertViaClipboardImpl(wordLength: wordLength, prevWordLength: prevWordLength, boundaryCount: boundaryCount, wholeLine: wholeLine) }
     }
-    private func convertViaClipboardImpl(wordLength: Int, prevWordLength: Int, boundaryCount: Int) -> Bool {
+    private func convertViaClipboardImpl(wordLength: Int, prevWordLength: Int, boundaryCount: Int, wholeLine: Bool) -> Bool {
         guard !isConverting else {
             rslog("convert: skipped — already converting")
             return false
@@ -624,7 +666,7 @@ final class TextConverter {
         let pasteboard = NSPasteboard.general
         cancelClipboardRestore()
         // Скептик 3.2.0: не перезаписываем сохранённый буфер при повторной конверсии в окне
-        // восстановления (2с) — иначе «оригиналом» стал бы промежуточный конвертированный текст.
+        // восстановления — иначе «оригиналом» стал бы промежуточный конвертированный текст.
         if savedClipboardItems == nil { savedClipboardItems = snapshotPasteboard(pasteboard) }
 
         var conversionSucceeded = false
@@ -635,15 +677,20 @@ final class TextConverter {
         }
 
         // --- Попытка 1: уже есть выделенный текст? ---
-        if let text = tryCopy(pasteboard) {
+        if let text = readSelection(pasteboard) {
             rslog("convert: selection len=\(text.count)")
             // issue #22: A «по тексту» (тотальный флип) → B «умная» по-словная (по умолч.) →
             // классика (одностороннее по раскладке, если умная выключена).
             let s = SettingsManager.shared
-            let converted = TextConverter.normalizedForInsert(
+            var converted = TextConverter.normalizedForInsert(
                 s.convertByText ? DynamicKeyMapping.convertBidirectional(text)
                 : s.smartConversion ? SmartConvert.selection(text)
                 : DynamicKeyMapping.convert(text))
+            // #46: «умная» не трогает верное слово, но одно слово человек выделил сам — переводим.
+            if converted == text, !wholeLine, s.smartConversion, !s.convertByText,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).contains(where: { $0.isWhitespace }) {
+                converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convertBidirectional(text))
+            }
             // Конверсия не изменила текст (пара не разрешилась / комбинирующие знаки —
             // см. bail'ы в DynamicKeyMapping) — не гоняем вставку впустую.
             if converted == text {
@@ -813,12 +860,13 @@ final class TextConverter {
         }
     }
 
-    /// Впечатывает строку напрямую (юникод-вставка), без буфера обмена. Кусками по 20
-    /// UTF-16 (insertChunks): один CGEvent длиннее этого приложения обрезают, а расшифровка
-    /// автозамены бывает до 500 знаков.
+    /// Впечатывает строку напрямую (юникод-вставка), без буфера обмена. По символу на нажатие,
+    /// как обычный набор: терминалы берут из нажатия только первый символ, а браузеры теряют
+    /// многосимвольное нажатие после серии Backspace (#47). Расшифровка автозамены бывает до
+    /// 500 знаков — она идёт кусками по 20 UTF-16, больше один CGEvent не несёт.
     nonisolated private func insertText(_ text: String) {
         guard let source = makeSource() else { return }
-        let chunks = insertChunks(text)
+        let chunks = insertChunks(text, limit: text.utf16.count > 200 ? 20 : 1)
         for (i, chunk) in chunks.enumerated() {
             let utf16 = Array(chunk.utf16)
             guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
@@ -835,8 +883,10 @@ final class TextConverter {
 
     /// Вставляет текст через Cmd+V и ждёт завершения
     private func pasteText(_ text: String, pasteboard: NSPasteboard) {
+        clipboardDirty = true
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
+        for type in Self.transientTypes { pasteboard.setData(Data(), forType: type) }
         simKey(keyCode: KC.letterV, flags: .maskCommand) // Cmd+V
         usleep(150_000) // 150мс — дать приложению вставить текст и обновить курсор
     }
@@ -847,39 +897,56 @@ final class TextConverter {
         clipboardRestoreWork = nil
     }
 
+    /// Пометки nspasteboard.org: менеджеры буфера обмена не заносят такую запись в историю (#44).
+    private static let transientTypes = [
+        NSPasteboard.PasteboardType("org.nspasteboard.TransientType"),
+        NSPasteboard.PasteboardType("org.nspasteboard.AutoGeneratedType"),
+    ]
+
+    /// Возвращает пользователю сохранённое содержимое буфера. Пометка нужна и здесь: это его же
+    /// запись, в истории менеджера она уже есть.
+    private func writeBackClipboard(_ saved: [NSPasteboardItem]) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        if let first = saved.first {
+            for type in Self.transientTypes { first.setData(Data(), forType: type) }
+            pasteboard.writeObjects(saved)
+        }
+    }
+
     /// Немедленно возвращает буфер обмена пользователю (для путей-неудач).
     private func restoreClipboardNow() {
         cancelClipboardRestore()
         guard let saved = savedClipboardItems else { return }
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        if !saved.isEmpty { pasteboard.writeObjects(saved) }
+        if clipboardDirty { writeBackClipboard(saved) }
+        clipboardDirty = false
         savedClipboardItems = nil
     }
 
     /// Сбрасывает отложенное восстановление немедленно — вызывается перед
-    /// завершением приложения, чтобы не потерять буфер в 2-секундном окне.
+    /// завершением приложения, чтобы не потерять буфер в окне ожидания.
     func flushPendingClipboardRestore() {
         guard clipboardRestoreWork != nil else { return }
         restoreClipboardNow()
     }
 
-    /// Планирует восстановление clipboard через 2 секунды
-    /// (если за это время придёт reconvert — отменится и перепланируется)
+    /// Планирует восстановление clipboard (если за это время придёт reconvert — отменится и
+    /// перепланируется). Запас нужен потому, что приложение обрабатывает Cmd+V асинхронно:
+    /// вернуть буфер раньше — и оно вставит старое содержимое. Клиенту удалёнки буфер
+    /// доезжает по сети, ему запас больше.
     private func scheduleClipboardRestore() {
         cancelClipboardRestore()
         let saved = self.savedClipboardItems
         let work = DispatchWorkItem { [weak self] in
-            let pasteboard = NSPasteboard.general
-            pasteboard.clearContents()
-            if let saved, !saved.isEmpty {
-                pasteboard.writeObjects(saved)
-            }
+            self?.writeBackClipboard(saved ?? [])
+            self?.clipboardDirty = false
             self?.savedClipboardItems = nil
             rslog("clipboard restored (\(saved?.count ?? 0) items)")
         }
         clipboardRestoreWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
+        let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        let delay: TimeInterval = AutoSwitchPolicy.isRemoteDesktopClient(frontID) ? 2.0 : 0.7
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
     /// Делает глубокую копию всех pasteboard items (со всеми типами данных).
@@ -903,8 +970,19 @@ final class TextConverter {
         }
     }
 
+    /// Текущее выделение: однострочное берём через AX, тогда промежуточного Cmd+C нет и
+    /// менеджер буфера его не увидит (#44). AX не отдал или текст многострочный — Cmd+C
+    /// (абзацы приложения отдают через AX по-разному).
+    private func readSelection(_ pasteboard: NSPasteboard) -> String? {
+        if let text = selectedTextAX(), !text.isEmpty, !text.contains(where: { $0.isNewline }) {
+            return text
+        }
+        return tryCopy(pasteboard)
+    }
+
     /// Копирует выделенный текст. Делает до 3 попыток (Cmd+C не всегда срабатывает с первого раза)
     private func tryCopy(_ pasteboard: NSPasteboard) -> String? {
+        clipboardDirty = true
         for attempt in 0..<3 {
             // Очищаем буфер перед копированием — гарантирует что changeCount изменится
             pasteboard.clearContents()
