@@ -90,7 +90,10 @@ After you switch layout, RuSwitcher can briefly show the layout flag **right nex
 - **Switch layout from the menu** *(new in 2.6.1)* — pick any installed layout right from the menu-bar menu (flag, name, a check on the current one) and click to switch.
 - **Configurable trigger** — Option, Command, Control or Shift (left/right, single/double-tap), or a two-key combo like ⌘+⇧.
 - **Layout-switch hotkey** *(new in 3.0)* — a separate hotkey that only switches the layout (no conversion), including Ctrl+Shift and other modifier-only combos macOS can't assign; right-key-only and double-tap options. Off by default.
+- **Hotkeys tab** *(new in 3.5)* — all hotkeys in one place: "Always layout 1/2" (say, left ⌘ for English and right ⌘ for Russian), Fn (🌐) and Fn+Shift as keys, and a hotkey that adds a word to exceptions.
 - **Automatic conversion (beta)** — optionally fix the layout as you type, with a precision-first system-dictionary check. Off by default.
+- **Extended dictionary (optional)** *(new in 3.5)* — a download of about 250 KB with slang, names and new words; brand names like ChatGPT or GitHub typed in the wrong layout are recognized too.
+- **Enter, Tab and text fixes** *(new in 3.5)* — auto-conversion can also trigger on Enter and Tab; abbreviations (brgds → Best regards), two capitals in a row and obvious typos get fixed as you type. All off by default.
 - **Remote desktop (beta)** — fix the layout over Apple Screen Sharing, on the Mac you're controlling.
 - **Exception lists** — a per-app exclusion list plus never-convert and always-convert word lists.
 - **Layout sound (optional)** — a short sound on the first letter after a layout change, so you *hear* which layout you're in.
@@ -179,6 +182,8 @@ Free code signing on Windows provided by [SignPath.io](https://about.signpath.io
 
 [MIT](LICENSE) — free to use, modify, and distribute. The license covers the code; the RuSwitcher name and icon are not part of it, see [TRADEMARKS.md](TRADEMARKS.md).
 
+App icon designed by [kutawhat](https://github.com/kutawhat).
+
 Word lists (the downloadable dictionaries and the built-in list of common Hebrew words) are derived from [FrequencyWords](https://github.com/hermitdave/FrequencyWords) by Hermit Dave, CC BY-SA 4.0.
 
 ---
@@ -237,7 +242,10 @@ RuSwitcher работает через **Apple Screen Sharing**. Печатае�
 - **Переключение раскладки из меню** *(новое в 2.6.1)* — выберите любую установленную раскладку прямо в меню-баре (флаг, имя, галочка на текущей) и кликните для переключения.
 - **Настраиваемый триггер** — Option, Command, Control или Shift (левый/правый, одиночный/двойной тап), либо комбо из двух клавиш вроде ⌘+⇧.
 - **Хоткей переключения раскладки** *(новое в 3.0)* — отдельный хоткей только для смены раскладки (без конверсии), включая Ctrl+Shift и другие комбо модификаторов, недоступные системным настройкам; опции «только правая» и «двойной тап». По умолчанию выключен.
+- **Вкладка «Хоткеи»** *(новое в 3.5)* — все хоткеи в одном месте: «Всегда раскладка 1/2» (например, левый ⌘ для английской и правый ⌘ для русской), Fn (🌐) и Fn+Shift как клавиши, хоткей, который добавляет слово в исключения.
 - **Автоматическая конверсия (бета)** — опционально исправляет раскладку по ходу набора, с проверкой по системному словарю. По умолчанию выключено.
+- **Расширенный словарь (по желанию)** *(новое в 3.5)* — загрузка около 250 КБ: сленг, имена, новые слова; узнаются и бренды вроде ChatGPT или GitHub, набранные не в той раскладке.
+- **Enter, Tab и правки текста** *(новое в 3.5)* — автоконверсия может срабатывать и на Enter и Tab; автозамена сокращений (сув → С уважением), исправление двух заглавных подряд и явных опечаток. Всё выключено по умолчанию.
 - **Режим удалённого стола (бета)** — исправление раскладки через Apple Screen Sharing, на управляемой машине.
 - **Списки исключений** — список приложений плюс словари never-convert и always-convert.
 - **Звук раскладки (опционально)** — короткий звук на первой букве после смены раскладки, чтобы *на слух* понимать раскладку.
@@ -325,5 +333,7 @@ cp -R RuSwitcher.app /Applications/
 ### Лицензия
 
 [MIT](LICENSE) — свободное использование, модификация и распространение. Лицензия относится к коду: название RuSwitcher и иконка в неё не входят, см. [TRADEMARKS.md](TRADEMARKS.md).
+
+Иконку приложения нарисовал [kutawhat](https://github.com/kutawhat).
 
 Списки слов (скачиваемые словари и встроенный список частых ивритских слов) взяты из [FrequencyWords](https://github.com/hermitdave/FrequencyWords) Hermit Dave, CC BY-SA 4.0.
