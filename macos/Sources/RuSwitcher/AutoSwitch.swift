@@ -407,6 +407,19 @@ enum AutoSwitchPolicy {
         return terminalApps.contains(id)
     }
 
+    static let browsers: Set<String> = [
+        "com.google.Chrome", "com.google.Chrome.beta", "com.google.Chrome.dev", "com.google.Chrome.canary",
+        "org.chromium.Chromium", "com.apple.Safari", "com.apple.SafariTechnologyPreview",
+        "org.mozilla.firefox", "org.mozilla.firefoxdeveloperedition", "org.mozilla.nightly",
+        "ru.yandex.desktop.yandex-browser", "com.microsoft.edgemac", "com.brave.Browser",
+        "com.operasoftware.Opera", "com.vivaldi.Vivaldi", "company.thebrowser.Browser",
+        "company.thebrowser.dia", "app.zen-browser.zen",
+    ]
+    static func isBrowser(_ bundleID: String?) -> Bool {
+        guard let id = bundleID else { return false }
+        return browsers.contains(id)
+    }
+
     static func isDeniedApp(_ bundleID: String?) -> Bool {
         guard let id = bundleID else { return false }
         // Менеджеры паролей — жёсткий, не зависящий от пользовательского списка гейт:

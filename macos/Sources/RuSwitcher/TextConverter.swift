@@ -160,10 +160,11 @@ final class TextConverter {
         lastUndoSwitchesLayout = true
         rslog("buffer convert: \(keys.count) keys (+\(passthroughSuffix.count) punct, +\(trailingSpaces) sp)")
 
+        let bySelection = eraseBySelection(count: bsCount, insert: insert)
         // Инжект — вне main, чтобы usleep не голодал event tap.
         injectQueue.async { [weak self] in
             guard let self else { return }
-            self.backspace(bsCount)
+            self.erase(bsCount, bySelection: bySelection)
             usleep(8_000)   // короткий зазор стирание→вставка: порядок и так гарантирован очередью HID
             self.insertText(insert)
             Task { @MainActor in self.isConverting = false }
@@ -218,9 +219,10 @@ final class TextConverter {
         }
         let normalized = Self.normalizedForInsert(insert)
         rslog("replaceTail: del=\(deleteCount)+\(extra) ins=\(insert.count) key=\(repostKey != nil)")
+        let bySelection = extra == 0 && eraseBySelection(count: deleteCount, insert: normalized)
         injectQueue.async { [weak self] in
             guard let self else { return }
-            self.backspace(deleteCount + extra)
+            self.erase(deleteCount + extra, bySelection: bySelection)
             usleep(8_000)
             self.insertText(normalized)
             if let k = repostKey {
@@ -408,9 +410,10 @@ final class TextConverter {
         caseOnScreen = changed
         isConverting = true
         rslog("case: buffer \(original.count) chars → variant \(idx), bs \(bs)")
+        let bySelection = eraseBySelection(count: bs, insert: changed)
         injectQueue.async { [weak self] in
             guard let self else { return }
-            self.backspace(bs)
+            self.erase(bs, bySelection: bySelection)
             usleep(20_000)
             self.insertText(changed)
             Task { @MainActor in self.isConverting = false }
@@ -632,9 +635,10 @@ final class TextConverter {
             let bsCount = lastConverted.count
             let insert = lastOriginal
             let tmp = lastOriginal; lastOriginal = lastConverted; lastConverted = tmp
+            let bySelection = eraseBySelection(count: bsCount, insert: insert)
             injectQueue.async { [weak self] in
                 guard let self else { return }
-                self.backspace(bsCount)
+                self.erase(bsCount, bySelection: bySelection)
                 usleep(20_000)
                 self.insertText(insert)
                 Task { @MainActor in self.isConverting = false }
@@ -856,6 +860,52 @@ final class TextConverter {
 
     nonisolated private static let perCharInsertLimit = 64
 
+    /// Слово, занимающее всё веб-поле, не стираем, а выделяем и печатаем поверх (#47): оставшись
+    /// на миг пустым, веб-редактор пересоздаёт поле, и вставка пропадает вместе со словом. При
+    /// сбое слово просто остаётся выделенным. Только в таком поле и только внутри страницы:
+    /// в адресной строке выделение ломает автодополнение, а в веб-терминале Shift+← печатает
+    /// мусор. RTL — нет: стрелки двигают каретку визуально (см. convert).
+    private func eraseBySelection(count: Int, insert: String) -> Bool {
+        guard AutoSwitchPolicy.isBrowser(NSWorkspace.shared.frontmostApplication?.bundleIdentifier),
+              !TextConverter.containsRTL(insert), !lastOriginalIsRTL,
+              erasingEmptiesField(count), focusInWebContent() else { return false }
+        if let pair = LayoutSwitcher.currentAndOppositeLanguage(),
+           LayoutDetector.isHebrew(pair.current) || LayoutDetector.isHebrew(pair.opposite) { return false }
+        rslog("erase: by selection")
+        return true
+    }
+
+    /// В поле нет ничего, кроме стираемого текста. Неизвестно — считаем, что есть.
+    private func erasingEmptiesField(_ count: Int) -> Bool {
+        guard let element = focusedElement() else { return false }
+        var raw: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success,
+              let value = raw as? String else { return false }
+        return value.trimmingCharacters(in: .newlines).count <= count
+    }
+
+    private var lastOriginalIsRTL: Bool { TextConverter.containsRTL(lastOriginal) || TextConverter.containsRTL(lastConverted) }
+
+    /// Фокус внутри веб-страницы: среди предков есть AXWebArea. Глубина страниц бывает большой.
+    private func focusInWebContent() -> Bool {
+        guard var element = focusedElement() else { return false }
+        for _ in 0..<64 {
+            var roleRaw: AnyObject?
+            guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRaw) == .success else { return false }
+            if roleRaw as? String == "AXWebArea" { return true }
+            var parent: AnyObject?
+            guard AXUIElementCopyAttributeValue(element, kAXParentAttribute as CFString, &parent) == .success,
+                  let next = parent else { return false }
+            element = next as! AXUIElement
+            AXUIElementSetMessagingTimeout(element, 0.25)
+        }
+        return false
+    }
+
+    nonisolated private func erase(_ count: Int, bySelection: Bool) {
+        if bySelection { selectBack(count) } else { backspace(count) }
+    }
+
     /// Стирает n символов (Backspace × n) — для движка перепечатки.
     /// Пауза минимальная: порядок доставки гарантирует системная очередь HID, а при
     /// прежних 3мс/клавишу стирание длинного слова растягивалось на кадры отрисовки —
@@ -884,6 +934,8 @@ final class TextConverter {
                 down.keyboardSetUnicodeString(stringLength: buf.count, unicodeString: buf.baseAddress)
                 up.keyboardSetUnicodeString(stringLength: buf.count, unicodeString: buf.baseAddress)
             }
+            down.flags = []   // иначе событие унаследует Shift от только что посланного Shift+←
+            up.flags = []
             down.post(tap: .cghidEventTap)
             up.post(tap: .cghidEventTap)
             if i < chunks.count - 1 { usleep(1_000) }
