@@ -866,22 +866,32 @@ final class TextConverter {
     /// в адресной строке выделение ломает автодополнение, а в веб-терминале Shift+← печатает
     /// мусор. RTL — нет: стрелки двигают каретку визуально (см. convert).
     private func eraseBySelection(count: Int, insert: String) -> Bool {
-        guard AutoSwitchPolicy.isBrowser(NSWorkspace.shared.frontmostApplication?.bundleIdentifier),
-              !TextConverter.containsRTL(insert), !lastOriginalIsRTL,
-              erasingEmptiesField(count), focusInWebContent() else { return false }
+        guard let app = NSWorkspace.shared.frontmostApplication, AutoSwitchPolicy.isBrowser(app.bundleIdentifier),
+              !TextConverter.containsRTL(insert), !lastOriginalIsRTL else { return false }
+        // Chromium строит дерево доступности лениво: поле становится видно не сразу, и первая
+        // замена после запуска браузера идёт обычным путём.
+        let axApp = AXUIElementCreateApplication(app.processIdentifier)
+        AXUIElementSetMessagingTimeout(axApp, 0.25)
+        AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+        guard frontmostAppHasFocus(), erasingEmptiesField(count), focusInWebContent() else { return false }
         if let pair = LayoutSwitcher.currentAndOppositeLanguage(),
            LayoutDetector.isHebrew(pair.current) || LayoutDetector.isHebrew(pair.opposite) { return false }
         rslog("erase: by selection")
         return true
     }
 
-    /// В поле нет ничего, кроме стираемого текста. Неизвестно — считаем, что есть.
+    /// В поле нет ничего, кроме стираемого текста. Неизвестно — считаем, что есть: пустое
+    /// значение отдаёт скрытая textarea веб-терминала. Сравнение не строгое: на автоконверсии
+    /// AXValue может отставать на символ. Длинное поле отсекаем длиной, не читая его текст.
     private func erasingEmptiesField(_ count: Int) -> Bool {
         guard let element = focusedElement() else { return false }
         var raw: AnyObject?
+        if AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &raw) == .success,
+           let length = raw as? Int, length > count + 2 { return false }
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success,
               let value = raw as? String else { return false }
-        return value.trimmingCharacters(in: .newlines).count <= count
+        let text = value.trimmingCharacters(in: .newlines)
+        return !text.isEmpty && text.count <= count && !TextConverter.containsRTL(text)
     }
 
     private var lastOriginalIsRTL: Bool { TextConverter.containsRTL(lastOriginal) || TextConverter.containsRTL(lastConverted) }
@@ -889,7 +899,9 @@ final class TextConverter {
     /// Фокус внутри веб-страницы: среди предков есть AXWebArea. Глубина страниц бывает большой.
     private func focusInWebContent() -> Bool {
         guard var element = focusedElement() else { return false }
+        let deadline = Date().addingTimeInterval(0.05)   // путь Enter идёт из колбэка tap'а
         for _ in 0..<64 {
+            guard Date() < deadline else { return false }
             var roleRaw: AnyObject?
             guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleRaw) == .success else { return false }
             if roleRaw as? String == "AXWebArea" { return true }
