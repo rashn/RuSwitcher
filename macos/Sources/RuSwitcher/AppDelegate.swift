@@ -9,6 +9,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let settingsController = SettingsWindowController()
     private let perAppLayoutManager = PerAppLayoutManager()
     private var permissionCheckTimer: Timer?
+    private var permissionsReminder: DispatchWorkItem?
+    private var permissionsAlertShown = false
     private var iconRefreshTimer: Timer?
     private var updateCheckTimer: Timer?   // периодическая авто-проверка обновлений, пока приложение работает
     private var monitoringActive = false
@@ -213,6 +215,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         if SettingsManager.shared.permissionsWereGranted {
             rslog("Permissions were previously granted — reset detected after update")
             SettingsManager.shared.permissionsWereGranted = false
+            armPermissionsReminder()
             showPermissionsResetAlert()
             return
         }
@@ -220,29 +223,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Системное окно запроса macOS показывает один раз: закрыл или не заметил — и приложение
         // молча не работает. Поэтому со второго раза объясняем сами.
         let settings = SettingsManager.shared
-        if interactive || settings.permissionsPrompted {
-            showPermissionsMissingAlert(accessibility: acc)
-        } else {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 30) { [weak self] in
-                guard let self, !Self.permissionsGranted else { return }
-                self.showPermissionsMissingAlert(accessibility: AXIsProcessTrusted())
-            }
-        }
+        let explain = interactive || settings.permissionsPrompted
         settings.permissionsPrompted = true
 
         // Первый запуск — обычный визард
         if acc {
             showStep_InputMonitoring()
-            return
+        } else {
+            showStep_Accessibility()
         }
 
-        showStep_Accessibility()
+        if explain {
+            // Не из applicationDidFinishLaunching: модальное окно задержало бы остальной запуск.
+            permissionsReminder?.cancel()
+            DispatchQueue.main.async { [weak self] in self?.showPermissionsMissingAlert() }
+        } else {
+            armPermissionsReminder()
+        }
     }
 
     private static var permissionsGranted: Bool { AXIsProcessTrusted() && CGPreflightListenEventAccess() }
 
+    private func armPermissionsReminder() {
+        permissionsReminder?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.showPermissionsMissingAlert() }
+        permissionsReminder = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 30, execute: work)
+    }
+
     /// Нет разрешений и системного окна запроса больше не будет: ведём в нужный раздел настроек.
-    private func showPermissionsMissingAlert(accessibility: Bool) {
+    private func showPermissionsMissingAlert() {
+        guard !Self.permissionsGranted, !permissionsAlertShown else { return }
+        permissionsAlertShown = true
+        defer { permissionsAlertShown = false }
+        let accessibility = AXIsProcessTrusted()
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = L10n.permissionsMissingTitle
@@ -305,18 +319,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let options = ["AXTrustedCheckOptionPrompt" as CFString: true as CFBoolean] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
 
-        permissionCheckTimer?.invalidate()
-        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if AXIsProcessTrusted() {
-                    rslog("Accessibility granted!")
-                    self.permissionCheckTimer?.invalidate()
-                    self.permissionCheckTimer = nil
-                    self.showStep_InputMonitoring()
-                }
-            }
+        startPermissionPolling { [weak self] in
+            guard let self, AXIsProcessTrusted() else { return }
+            rslog("Accessibility granted!")
+            self.permissionCheckTimer?.invalidate()
+            self.permissionCheckTimer = nil
+            self.showStep_InputMonitoring()
         }
+    }
+
+    /// Опрос идёт и пока открыто наше окно с разрешениями: в common-режимах таймер не стоит
+    /// на модальном цикле.
+    private func startPermissionPolling(_ check: @escaping @MainActor () -> Void) {
+        permissionCheckTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.5, repeats: true) { _ in
+            Task { @MainActor in check() }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        permissionCheckTimer = timer
     }
 
     private func showStep_InputMonitoring() {
@@ -335,18 +355,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         rslog("Requesting access...")
         CGRequestListenEventAccess()
 
-        permissionCheckTimer?.invalidate()
-        permissionCheckTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                guard let self else { return }
-                if CGPreflightListenEventAccess() {
-                    rslog("Input Monitoring granted! Restarting...")
-                    SettingsManager.shared.permissionsWereGranted = true
-                    self.permissionCheckTimer?.invalidate()
-                    self.permissionCheckTimer = nil
-                    self.restartApp()
-                }
-            }
+        startPermissionPolling { [weak self] in
+            guard let self, CGPreflightListenEventAccess() else { return }
+            rslog("Input Monitoring granted! Restarting...")
+            SettingsManager.shared.permissionsWereGranted = true
+            self.permissionCheckTimer?.invalidate()
+            self.permissionCheckTimer = nil
+            self.restartApp()
         }
     }
 
@@ -1137,7 +1152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         guard menu === statusItem.menu else { return }
         menu.item(withTag: Self.permissionsItemTag)?.isHidden = Self.permissionsGranted
-        let insertAt = menu.items.firstIndex { $0.tag == Self.layoutItemTag } ?? 2
+        let insertAt = menu.items.firstIndex { $0.tag == Self.layoutItemTag } ?? 3
         for old in menu.items where old.tag == Self.layoutItemTag { menu.removeItem(old) }
         for (offset, item) in layoutMenuItems().enumerated() {
             menu.insertItem(item, at: insertAt + offset)

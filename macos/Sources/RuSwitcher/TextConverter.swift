@@ -614,7 +614,7 @@ final class TextConverter {
             usleep(15_000)
             self.simKey(keyCode: KC.left, flags: [.maskShift, .maskAlternate])        // выделить слово (по границе)
             usleep(15_000)
-            self.insertText(converted)                                                // печать поверх выделения = замена
+            self.insertText(converted, wholeWord: true)                               // печать поверх выделения = замена
             usleep(15_000)
             for _ in 0..<boundaryCount { self.simKey(keyCode: KC.right, flags: []) }   // вернуть курсор за пробелы
             Task { @MainActor in self.isConverting = false }
@@ -660,7 +660,8 @@ final class TextConverter {
         lastUndoSwitchesLayout = true   // ревью I3: откат конверсии меняет раскладку
         defer { isConverting = false }
 
-        if !isFocusedElementEditable() {
+        let editable = isFocusedElementEditable()
+        if !editable {
             rslog("convert: element may not be editable, trying anyway")
         }
         let pasteboard = NSPasteboard.general
@@ -687,8 +688,12 @@ final class TextConverter {
                 : s.smartConversion ? SmartConvert.selection(text)
                 : DynamicKeyMapping.convert(text))
             // #46: «умная» не трогает верное слово, но одно слово человек выделил сам — переводим.
+            // Перевод строки в тексте значит, что выделения не было: редактор на Cmd+C скопировал
+            // всю строку. Без букв (3.14, $100) и вне текстового поля переводить нечего.
             if converted == text, !wholeLine, s.smartConversion, !s.convertByText,
-               !text.trimmingCharacters(in: .whitespacesAndNewlines).contains(where: { $0.isWhitespace }) {
+               text.contains(where: { $0.isLetter }), !text.contains(where: { $0.isNewline }),
+               !text.trimmingCharacters(in: .whitespaces).contains(where: { $0.isWhitespace }),
+               editable || focusedRole() == nil {
                 converted = TextConverter.normalizedForInsert(DynamicKeyMapping.convertBidirectional(text))
             }
             // Конверсия не изменила текст (пара не разрешилась / комбинирующие знаки —
@@ -849,6 +854,8 @@ final class TextConverter {
 
     // MARK: - Private
 
+    nonisolated private static let perCharInsertLimit = 64
+
     /// Стирает n символов (Backspace × n) — для движка перепечатки.
     /// Пауза минимальная: порядок доставки гарантирует системная очередь HID, а при
     /// прежних 3мс/клавишу стирание длинного слова растягивалось на кадры отрисовки —
@@ -862,11 +869,13 @@ final class TextConverter {
 
     /// Впечатывает строку напрямую (юникод-вставка), без буфера обмена. По символу на нажатие,
     /// как обычный набор: терминалы берут из нажатия только первый символ, а браузеры теряют
-    /// многосимвольное нажатие после серии Backspace (#47). Расшифровка автозамены бывает до
-    /// 500 знаков — она идёт кусками по 20 UTF-16, больше один CGEvent не несёт.
-    nonisolated private func insertText(_ text: String) {
+    /// многосимвольное нажатие после серии Backspace (#47). Посимвольная вставка не атомарна,
+    /// поэтому длинный текст (расшифровка автозамены, до 500 знаков) идёт кусками по 20 UTF-16,
+    /// больше один CGEvent не несёт. wholeWord — вставить одним нажатием поверх выделения.
+    nonisolated private func insertText(_ text: String, wholeWord: Bool = false) {
         guard let source = makeSource() else { return }
-        let chunks = insertChunks(text, limit: text.utf16.count > 200 ? 20 : 1)
+        let limit = wholeWord || text.utf16.count > Self.perCharInsertLimit ? 20 : 1
+        let chunks = insertChunks(text, limit: limit)
         for (i, chunk) in chunks.enumerated() {
             let utf16 = Array(chunk.utf16)
             guard let down = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
@@ -934,6 +943,12 @@ final class TextConverter {
     /// перепланируется). Запас нужен потому, что приложение обрабатывает Cmd+V асинхронно:
     /// вернуть буфер раньше — и оно вставит старое содержимое. Клиенту удалёнки буфер
     /// доезжает по сети, ему запас больше.
+    private static let slowClipboardApps: Set<String> = [
+        "com.microsoft.rdc.macos", "com.microsoft.rdc.osx.beta", "com.teamviewer.TeamViewer",
+        "com.philandro.anydesk", "tv.parsec.www", "com.citrix.receiver.nomas",
+        "com.realvnc.vncviewer", "com.carriez.rustdesk",
+    ]
+
     private func scheduleClipboardRestore() {
         cancelClipboardRestore()
         let saved = self.savedClipboardItems
@@ -945,7 +960,8 @@ final class TextConverter {
         }
         clipboardRestoreWork = work
         let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-        let delay: TimeInterval = AutoSwitchPolicy.isRemoteDesktopClient(frontID) ? 2.0 : 0.7
+        let slow = AutoSwitchPolicy.isRemoteDesktopClient(frontID) || frontID.map(Self.slowClipboardApps.contains) == true
+        let delay: TimeInterval = slow ? 2.0 : 0.7
         DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
     }
 
@@ -974,10 +990,26 @@ final class TextConverter {
     /// менеджер буфера его не увидит (#44). AX не отдал или текст многострочный — Cmd+C
     /// (абзацы приложения отдают через AX по-разному).
     private func readSelection(_ pasteboard: NSPasteboard) -> String? {
-        if let text = selectedTextAX(), !text.isEmpty, !text.contains(where: { $0.isNewline }) {
+        if frontmostAppHasFocus(), let text = selectedTextAX(), !text.isEmpty,
+           !text.contains(where: { $0.isNewline }) {
+            rslog("selection: read via AX")
             return text
         }
         return tryCopy(pasteboard)
+    }
+
+    /// Неактивирующая панель (Raycast, Alfred) держит ввод, а frontmost остаётся приложение под
+    /// ней: AX прочитал бы его выделение, а Cmd+V ушёл бы в панель. Неизвестно — считаем, что нет.
+    private func frontmostAppHasFocus() -> Bool {
+        guard let front = NSWorkspace.shared.frontmostApplication else { return false }
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.25)
+        var raw: AnyObject?
+        guard AXUIElementCopyAttributeValue(system, kAXFocusedApplicationAttribute as CFString, &raw) == .success,
+              let app = raw else { return false }
+        var pid: pid_t = 0
+        guard AXUIElementGetPid(app as! AXUIElement, &pid) == .success else { return false }
+        return pid == front.processIdentifier
     }
 
     /// Копирует выделенный текст. Делает до 3 попыток (Cmd+C не всегда срабатывает с первого раза)
