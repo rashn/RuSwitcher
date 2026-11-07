@@ -7,6 +7,10 @@ internal static class Win32
 {
     // --- Hook ---
     public const int WH_KEYBOARD_LL = 13;
+    public const int WH_MOUSE_LL = 14;
+    public const int WM_LBUTTONDOWN = 0x0201;
+    public const int WM_RBUTTONDOWN = 0x0204;
+    public const int WM_MBUTTONDOWN = 0x0207;
     public const int HC_ACTION = 0;
     public const int WM_KEYDOWN = 0x0100;
     public const int WM_SYSKEYDOWN = 0x0104;
@@ -40,7 +44,7 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern IntPtr CallNextHookEx(IntPtr hhk, int nCode, IntPtr wParam, IntPtr lParam);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     public static extern IntPtr GetModuleHandleW(string? lpModuleName);
 
     // --- Message loop ---
@@ -80,7 +84,11 @@ internal static class Win32
     [return: MarshalAs(UnmanagedType.Bool)]
     public static extern bool GetKeyboardState(byte[] lpKeyState);
 
-    [DllImport("user32.dll")]
+    // CharSet.Unicode is REQUIRED here: without it the default ANSI marshaling allocates the
+    // native pwszBuff at 1 byte per char while ToUnicodeEx writes UTF-16 (2 bytes per char) —
+    // a guaranteed heap overflow on multi-char output (dead keys), and the bytes read back
+    // through the ANSI codepage turn «вылетает» into "2K;5B05B" (each WCHAR's low byte).
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     public static extern int ToUnicodeEx(uint wVirtKey, uint wScanCode, byte[] lpKeyState,
         [Out] char[] pwszBuff, int cchBuff, uint wFlags, IntPtr dwhkl);
 
