@@ -48,4 +48,27 @@ public class KeystrokeBufferTests
         b.Reset();
         Assert.True(b.IsEmpty);
     }
+
+    [Fact]
+    public void PopLast_mirrors_manual_backspace()
+    {
+        // A typo deleted with Backspace must leave the buffer too — converting with the stale
+        // key still buffered re-types it («dsk,…» + Backspace became «вылбылетает»).
+        var b = new KeystrokeBuffer();
+        b.Append(new TypedKey(0x44, 0x20, Shift: false, Caps: false)); // d
+        b.Append(new TypedKey(0x53, 0x1F, Shift: false, Caps: false)); // s
+        b.Append(new TypedKey(0xBC, 0x33, Shift: false, Caps: false)); // ',' — the typo
+
+        b.PopLast();
+        Assert.Equal(2, b.CurrentWord.Count);
+        Assert.Equal(0x53u, b.CurrentWord[1].VkCode);
+    }
+
+    [Fact]
+    public void PopLast_on_empty_buffer_is_a_noop()
+    {
+        var b = new KeystrokeBuffer();
+        b.PopLast();
+        Assert.True(b.IsEmpty);
+    }
 }
