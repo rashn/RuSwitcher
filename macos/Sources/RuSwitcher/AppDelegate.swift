@@ -726,9 +726,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// #49: «Исправлять две заглавные» и на ручном триггере — «RJulf» → «Когда», а не «КОгда».
+    /// От четырёх букв: на трёх это часто единицы («VDn» → «МВт», а не «Мвт»).
     /// nil — исправлять нечего (или опция выключена, или Caps Lock).
     private func twoCapsFixed(_ keys: [TypedKey]) -> String? {
-        guard SettingsManager.shared.fixTwoCaps, !keys.isEmpty, !keys.contains(where: { $0.caps }),
+        guard SettingsManager.shared.fixTwoCaps, keys.count >= 4, !keys.contains(where: { $0.caps }),
               let pair = DynamicKeyMapping.convertKeys(keys),
               let langs = LayoutSwitcher.currentAndOppositeLanguage() else { return nil }
         let oth = String(langs.opposite.prefix(2))

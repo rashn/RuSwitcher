@@ -342,18 +342,18 @@ final class TextConverter {
     /// Выделение в другом месте (вывод в терминале) — не подсказка, лишний Backspace стёр бы
     /// чужую букву. AX молчит — подсказки нет, как и раньше.
     func inlineCompletionFollows(_ typed: String) -> Bool {
-        let n = (typed as NSString).length
-        guard n > 0, let element = focusedElement() else { return false }
+        guard !typed.isEmpty, let element = focusedElement() else { return false }
         var raw: AnyObject?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &raw) == .success,
               let value = raw, CFGetTypeID(value) == AXValueGetTypeID() else { return false }
         var sel = CFRange()
-        guard AXValueGetValue(value as! AXValue, .cfRange, &sel), sel.length > 0, sel.location >= n else { return false }
-        return textBefore(element, location: sel.location, length: n) == typed
+        guard AXValueGetValue(value as! AXValue, .cfRange, &sel) else { return false }
+        return inlineCompletionMatches(typed: typed, location: sel.location, length: sel.length,
+                                       textBefore: { self.textBefore(element, location: $0, length: $1) })
     }
 
     /// length символов поля перед location: параметризованным атрибутом, а без него — из
-    /// значения поля, если оно не огромное.
+    /// значения поля, если известно, что оно не огромное (путь Enter идёт из колбэка tap'а).
     private func textBefore(_ element: AXUIElement, location: Int, length: Int) -> String? {
         var range = CFRange(location: location - length, length: length)
         var raw: AnyObject?
@@ -363,9 +363,9 @@ final class TextConverter {
            let s = raw as? String {
             return s
         }
-        if AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &raw) == .success,
-           let count = raw as? Int, count > 10_000 { return nil }
-        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success,
+        guard AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &raw) == .success,
+              let count = raw as? Int, count <= 10_000,
+              AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success,
               let text = raw as? NSString, location <= text.length else { return nil }
         return text.substring(with: NSRange(location: location - length, length: length))
     }
@@ -443,11 +443,12 @@ final class TextConverter {
         }
         guard changed != caseOnScreen else { return false }   // все варианты равны (иврит и т.п.) → пропуск
         caseIndex = idx
-        let bs = caseOnScreen.count                           // стираем РЕАЛЬНУЮ экранную длину
+        let completion = inlineCompletionFollows(caseOnScreen)   // #47: подсказка адресной строки
+        let bs = caseOnScreen.count + (completion ? 1 : 0)    // стираем РЕАЛЬНУЮ экранную длину
         caseOnScreen = changed
         isConverting = true
         rslog("case: buffer \(original.count) chars → variant \(idx), bs \(bs)")
-        let bySelection = eraseBySelection(count: bs, insert: changed)
+        let bySelection = !completion && eraseBySelection(count: bs, insert: changed)
         injectQueue.async { [weak self] in
             guard let self else { return }
             self.erase(bs, bySelection: bySelection)
@@ -668,11 +669,13 @@ final class TextConverter {
         if lastWasBuffer {
             guard !lastConverted.isEmpty else { return false }
             isConverting = true
-            rslog("buffer reconvert")
-            let bsCount = lastConverted.count
+            // #47: адресная строка дописала подсказку и к вставленному слову.
+            let completion = inlineCompletionFollows(lastConverted)
+            rslog("buffer reconvert\(completion ? " (+1 completion)" : "")")
+            let bsCount = lastConverted.count + (completion ? 1 : 0)
             let insert = lastOriginal
             let tmp = lastOriginal; lastOriginal = lastConverted; lastConverted = tmp
-            let bySelection = eraseBySelection(count: bsCount, insert: insert)
+            let bySelection = !completion && eraseBySelection(count: bsCount, insert: insert)
             injectQueue.async { [weak self] in
                 guard let self else { return }
                 self.erase(bsCount, bySelection: bySelection)

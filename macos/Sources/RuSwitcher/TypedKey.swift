@@ -34,3 +34,18 @@ func insertChunks(_ s: String, limit: Int = 20) -> [String] {
     if !cur.isEmpty { out.append(cur) }
     return out
 }
+
+/// Выделенная подсказка автодополнения сразу за набранным (#47): выделение непустое и
+/// начинается за словом, а текст перед ним — само слово. Регистр не важен: браузер может
+/// подставить регистр подсказки. AX бывает на символ позади ввода — тогда перед выделением
+/// слово без последней буквы. textBefore(location, n) — n единиц UTF-16 перед location.
+func inlineCompletionMatches(typed: String, location: Int, length: Int,
+                             textBefore: (Int, Int) -> String?) -> Bool {
+    let full = (typed as NSString).length
+    guard length > 0, full > 0 else { return false }
+    for n in [full, full - 1] where n > 0 && location >= n {
+        let expected = (typed as NSString).substring(to: n)
+        if let s = textBefore(location, n), s.caseInsensitiveCompare(expected) == .orderedSame { return true }
+    }
+    return false
+}

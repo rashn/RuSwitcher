@@ -40,11 +40,18 @@ enum SmartConvert {
         var pending: [Int] = []                  // неразрешённые токены — решаем в пасе 2 по сигналу
         var flippedCyr = 0, flippedLat = 0
         var codes: [Int: String] = [:]           // решение по слову для лога: код + длина, без текста
+        var sentenceStart = true                 // начало выделения, после . ! ? … или с новой строки
 
         // Пас 1 — валидные оставляем, распознанный мусор флипаем и считаем направление.
         for (i, tok) in toks.enumerated() {
-            guard tok.isWord else { results[i] = tok.str; continue }
-            switch decideWord(tok.str, latLang: latLang, cyrLang: cyrLang) {
+            guard tok.isWord else {
+                results[i] = tok.str
+                if tok.str.contains(where: { $0.isNewline }) { sentenceStart = true }
+                continue
+            }
+            let atStart = sentenceStart
+            sentenceStart = tok.str.last.map { ".!?…".contains($0) } ?? false
+            switch decideWord(tok.str, sentenceStart: atStart, latLang: latLang, cyrLang: cyrLang) {
             case let .keep(why):
                 results[i] = tok.str
                 codes[i] = "\(why)\(tok.str.count)"
@@ -80,15 +87,21 @@ enum SmartConvert {
     /// Решение по слову. .flip несёт письменность РЕЗУЛЬТАТА (сигнал для пасса 2); .unresolved —
     /// кандидат на флип по сигналу соседей (мусор в своём скрипте, но словарём не подтверждён).
     @MainActor
-    private static func decideWord(_ w: String, latLang: String, cyrLang: String) -> WordDecision {
+    private static func decideWord(_ w: String, sentenceStart: Bool, latLang: String, cyrLang: String) -> WordDecision {
         let core = letterCore(w)
         let script = dominantScript(core)
         guard core.count >= 1, script == .cyr || script == .lat else { return .keep("o") }
-        // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2). До вето
-        // акронимов: заглавная в начале фразы («E vtyz» → «У меня», #51) — не акроним.
-        if core.count == 1 { return .unresolved }
+        // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2). Заглавная — только
+        // голая в начале фразы («E vtyz» → «У меня», #51): в середине и с цифрой или знаком это
+        // обозначение («категории B», «B12», «C++»), его не трогаем, как акроним.
+        if core.count == 1 {
+            if core.first!.isUppercase, !(sentenceStart && core == w) { return .keep("a") }
+            return .unresolved
+        }
         // Акронимы и код — как в LayoutDetector.decide.
-        if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return .keep("a") }
+        if LayoutDetector.isAllCaps(core) { return .keep("a") }
+        if LayoutDetector.looksLikeCodeIdentifier(core),
+           !LayoutDetector.isTwoCapsTypo(core, DynamicKeyMapping.convertBidirectional(core)) { return .keep("a") }
 
         let wordLang = (script == .cyr) ? cyrLang : latLang
         let flipLang = (script == .cyr) ? latLang : cyrLang

@@ -96,7 +96,9 @@ enum LayoutDetector {
         // поэтому эти два вето применяем только когда Caps Lock выключен.
         if !capsLock {
             if isAllCaps(typed) { return .undecided }                      // акронимы
-            if looksLikeCodeIdentifier(typed) { return .undecided }        // camelCase / смешанные алфавиты
+            if looksLikeCodeIdentifier(typed), !isTwoCapsTypo(typed, converted) {
+                return .undecided                                           // camelCase / смешанные алфавиты
+            }
         }
 
         let cur = String(currentLang.prefix(2))
@@ -324,12 +326,16 @@ enum LayoutDetector {
         s == s.uppercased() && s != s.lowercased()
     }
 
+    /// «RJulf» → «КОгда» (#49): две заглавные в начале — опечатка, а не код, её решает словарь.
+    /// От четырёх букв (на трёх образ единиц бывает словом: «GHz» → «ПРя») и только если образ
+    /// тоже такой: «ДЖош» → «L:ji» словарь режет на куски и принимает.
+    static func isTwoCapsTypo(_ typed: String, _ converted: String) -> Bool {
+        typed.count >= 4 && TextFixes.isTwoCaps(typed) && TextFixes.isTwoCaps(converted)
+    }
+
     /// Похоже на программный идентификатор: внутренняя заглавная (camelCase/PascalCase)
     /// или смешение латиницы и кириллицы в одном токене → почти всегда код, не слово.
-    /// Две заглавные в начале («RJulf» → «КОгда», #49) — опечатка, её решает словарь. От
-    /// четырёх букв: на трёх образ единиц измерения бывает словом («GHz» → «ПРя»).
     static func looksLikeCodeIdentifier(_ s: String) -> Bool {
-        if s.count >= 4, TextFixes.isTwoCaps(s) { return false }
         for (i, c) in s.enumerated() where i > 0 && c.isUppercase { return true }
         var hasLatin = false, hasCyrillic = false
         for u in s.unicodeScalars {
