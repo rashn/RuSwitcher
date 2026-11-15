@@ -19,7 +19,9 @@ import Foundation
 /// (DynamicKeyMapping.convertBidirectional). Пары не «латиница+кириллица» — обычный путь.
 enum SmartConvert {
     private enum Script { case cyr, lat, other, mixed }
-    private enum WordDecision { case keep, flip(String, Script), unresolved }
+    /// keep несёт причину для отладочного лога (#51): o — не та письменность, a — акроним или
+    /// код, s — частое короткое слово, v — слово словаря.
+    private enum WordDecision { case keep(Character), flip(String, Script), unresolved }
 
     // Частотные однобуквенные слова — доп. страховка для флипа ОДИНОЧНЫХ букв по сигналу.
     private static let cyr1: Set<Character> = ["я", "в", "с", "к", "о", "у", "а", "и"]
@@ -37,15 +39,18 @@ enum SmartConvert {
         var results = [String?](repeating: nil, count: toks.count)
         var pending: [Int] = []                  // неразрешённые токены — решаем в пасе 2 по сигналу
         var flippedCyr = 0, flippedLat = 0
+        var codes: [Int: String] = [:]           // решение по слову для лога: код + длина, без текста
 
         // Пас 1 — валидные оставляем, распознанный мусор флипаем и считаем направление.
         for (i, tok) in toks.enumerated() {
             guard tok.isWord else { results[i] = tok.str; continue }
             switch decideWord(tok.str, latLang: latLang, cyrLang: cyrLang) {
-            case .keep:
+            case let .keep(why):
                 results[i] = tok.str
+                codes[i] = "\(why)\(tok.str.count)"
             case let .flip(s, toScript):
                 results[i] = s
+                codes[i] = "f\(tok.str.count)"
                 if toScript == .cyr { flippedCyr += 1 } else if toScript == .lat { flippedLat += 1 }
             case .unresolved:
                 pending.append(i)
@@ -61,7 +66,14 @@ enum SmartConvert {
                             : (flippedLat > 0 && flippedCyr == 0) ? .lat : nil
 
         // Пас 2 — неразрешённые по сигналу.
-        for i in pending { results[i] = signalFlip(toks[i].str, target: target, latLang: latLang, cyrLang: cyrLang) }
+        for i in pending {
+            let r = signalFlip(toks[i].str, target: target, latLang: latLang, cyrLang: cyrLang)
+            results[i] = r
+            codes[i] = (r == toks[i].str ? "u" : "U") + "\(toks[i].str.count)"
+        }
+        // #51: какое слово выделения осталось и почему (u — не решено, U — дотянуто по соседям).
+        rslog("smart: " + codes.keys.sorted().map { codes[$0]! }.joined(separator: " ")
+              + " target=\(target.map { "\($0)" } ?? "-")")
         return results.map { $0 ?? "" }.joined()
     }
 
@@ -71,12 +83,12 @@ enum SmartConvert {
     private static func decideWord(_ w: String, latLang: String, cyrLang: String) -> WordDecision {
         let core = letterCore(w)
         let script = dominantScript(core)
-        guard core.count >= 1, script == .cyr || script == .lat else { return .keep }
+        guard core.count >= 1, script == .cyr || script == .lat else { return .keep("o") }
         // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2). До вето
         // акронимов: заглавная в начале фразы («E vtyz» → «У меня», #51) — не акроним.
         if core.count == 1 { return .unresolved }
         // Акронимы и код — как в LayoutDetector.decide.
-        if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return .keep }
+        if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return .keep("a") }
 
         let wordLang = (script == .cyr) ? cyrLang : latLang
         let flipLang = (script == .cyr) ? latLang : cyrLang
@@ -84,7 +96,7 @@ enum SmartConvert {
 
         // 2 буквы — только частотный список (NSSpellChecker на длине 2 ненадёжен), как decide.
         if core.count == 2 {
-            if let cur = ShortWords.common(wordLang), cur.contains(core.lowercased()) { return .keep }
+            if let cur = ShortWords.common(wordLang), cur.contains(core.lowercased()) { return .keep("s") }
             let whole = DynamicKeyMapping.convertBidirectional(w)
             let wc = letterCore(whole)
             if wc.count == 2, let oth = ShortWords.common(flipLang), oth.contains(wc.lowercased()) {
@@ -94,7 +106,7 @@ enum SmartConvert {
         }
 
         // 3+ — словарь. Уже валидное слово своего языка → не трогаем (iPhone, стоит).
-        if Dict.isValidWord(core.lowercased(), lang: wordLang) { return .keep }
+        if Dict.isValidWord(core.lowercased(), lang: wordLang) { return .keep("v") }
         // (1) флип целиком — ловит «ёлка» (`krf), «делю» (ltk.), «продолжение».
         let whole = DynamicKeyMapping.convertBidirectional(w)
         let wc = letterCore(whole)
