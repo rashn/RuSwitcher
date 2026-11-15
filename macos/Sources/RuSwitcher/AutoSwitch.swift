@@ -326,7 +326,10 @@ enum LayoutDetector {
 
     /// Похоже на программный идентификатор: внутренняя заглавная (camelCase/PascalCase)
     /// или смешение латиницы и кириллицы в одном токене → почти всегда код, не слово.
+    /// Две заглавные в начале («RJulf» → «КОгда», #49) — опечатка, её решает словарь. От
+    /// четырёх букв: на трёх образ единиц измерения бывает словом («GHz» → «ПРя»).
     static func looksLikeCodeIdentifier(_ s: String) -> Bool {
+        if s.count >= 4, TextFixes.isTwoCaps(s) { return false }
         for (i, c) in s.enumerated() where i > 0 && c.isUppercase { return true }
         var hasLatin = false, hasCyrillic = false
         for u in s.unicodeScalars {

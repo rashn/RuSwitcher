@@ -72,15 +72,15 @@ enum SmartConvert {
         let core = letterCore(w)
         let script = dominantScript(core)
         guard core.count >= 1, script == .cyr || script == .lat else { return .keep }
+        // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2). До вето
+        // акронимов: заглавная в начале фразы («E vtyz» → «У меня», #51) — не акроним.
+        if core.count == 1 { return .unresolved }
         // Акронимы и код — как в LayoutDetector.decide.
         if LayoutDetector.isAllCaps(core) || LayoutDetector.looksLikeCodeIdentifier(core) { return .keep }
 
         let wordLang = (script == .cyr) ? cyrLang : latLang
         let flipLang = (script == .cyr) ? latLang : cyrLang
         let flippedScript: Script = (script == .cyr) ? .lat : .cyr
-
-        // 1 буква — по словарю не решаемо; только по сигналу соседей (пас 2).
-        if core.count == 1 { return .unresolved }
 
         // 2 буквы — только частотный список (NSSpellChecker на длине 2 ненадёжен), как decide.
         if core.count == 2 {

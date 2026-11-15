@@ -37,15 +37,20 @@ enum TextFixes {
     /// строчные. isWord получает исправленную форму в нижнем регистре: без словарного
     /// подтверждения не трогаем — так целы IPv6, GHz, MHz.
     static func fixTwoCaps(_ word: String, isWord: (String) -> Bool) -> String? {
+        guard isTwoCaps(word) else { return nil }
+        let fixed = String(word.prefix(1)) + word.dropFirst().lowercased()
+        return isWord(fixed.lowercased()) ? fixed : nil
+    }
+
+    /// Шаблон опечатки «КОгда»: только буквы, длина ≥3, первые две заглавные, остальные строчные.
+    static func isTwoCaps(_ word: String) -> Bool {
         let c = Array(word)
         guard c.count >= 3, c.allSatisfy({ $0.isLetter }),
               c[0].isUppercase, c[1].isUppercase,
-              c[2...].allSatisfy({ $0.isLowercase }) else { return nil }
+              c[2...].allSatisfy({ $0.isLowercase }) else { return false }
         // «IDs», «PCs», «CDs» — множественное число аббревиатуры, а не опечатка (ревью I1:
         // словарь принимает ids/pcs, и без этой проверки они становились «Ids», «Pcs»).
-        if String(c[2...]) == "s" { return nil }
-        let fixed = String(c[0]) + String(c[1...]).lowercased()
-        return isWord(fixed.lowercased()) ? fixed : nil
+        return String(c[2...]) != "s"
     }
 
     /// «1ю8» → «1.8»: точка или запятая, набранные в нелатинской раскладке между цифрами.
