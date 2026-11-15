@@ -319,9 +319,12 @@ final class SettingsManager: @unchecked Sendable {
     }
 
     /// Размер флага в меню-баре, pt (0 — системный). Идея из форка landco-debug.
+    /// Без выбора — 18: системный флаг мельче соседних значков (#36). Явный выбор, в том
+    /// числе «Стандартный», сохраняется.
     static let flagSizes = [0, 16, 18, 20]
     var flagSize: Int {
         get {
+            guard defaults.object(forKey: Keys.flagSize) != nil else { return 18 }
             let v = defaults.integer(forKey: Keys.flagSize)
             return Self.flagSizes.contains(v) ? v : 0
         }
