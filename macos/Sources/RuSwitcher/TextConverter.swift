@@ -149,18 +149,21 @@ final class TextConverter {
         isConverting = true
 
         let spaces = String(repeating: " ", count: trailingSpaces)
-        let bsCount = keys.count + passthroughSuffix.count + trailingSpaces
         // issue #33 (скептик, HIGH): в lastOriginal — суффикс КАК НАБРАН, иначе реконверт
         // после «tkrb?»→«елки,» восстанавливал бы «tkrb,» вместо «tkrb?».
         let originalSuffix = typedSuffix.isEmpty ? passthroughSuffix : typedSuffix
+        let onScreen = pair.original + originalSuffix + spaces
+        // #47: подсказка адресной строки за словом — первый Backspace снимет её, а не букву.
+        let completion = inlineCompletionFollows(onScreen)
+        let bsCount = keys.count + passthroughSuffix.count + trailingSpaces + (completion ? 1 : 0)
         let insert = converted + passthroughSuffix + spaces
-        lastOriginal = pair.original + originalSuffix + spaces
+        lastOriginal = onScreen
         lastConverted = converted + passthroughSuffix + spaces
         lastWasBuffer = true
         lastUndoSwitchesLayout = true
-        rslog("buffer convert: \(keys.count) keys (+\(passthroughSuffix.count) punct, +\(trailingSpaces) sp)")
+        rslog("buffer convert: \(keys.count) keys (+\(passthroughSuffix.count) punct, +\(trailingSpaces) sp\(completion ? ", +1 completion" : ""))")
 
-        let bySelection = eraseBySelection(count: bsCount, insert: insert)
+        let bySelection = !completion && eraseBySelection(count: bsCount, insert: insert)
         // Инжект — вне main, чтобы usleep не голодал event tap.
         injectQueue.async { [weak self] in
             guard let self else { return }
@@ -176,13 +179,14 @@ final class TextConverter {
     /// repostKey — придержанная клавиша (Enter/Tab), уходит ПОСЛЕ вставки в той же очереди,
     /// поэтому порядок гарантирован. Уходит ВСЕГДА, даже если движок занят: проглоченный
     /// Enter без повтора — потерянная отправка сообщения.
-    /// clearInlineCompletion — перед стиранием убрать выделенное автодополнение (адресная
-    /// строка): иначе первый Backspace съест его, и слово сотрётся со сдвигом (класс #16).
+    /// completionAfter — набранное перед кареткой: если за ним выделенное автодополнение (адресная
+    /// строка), сначала снимаем его, иначе первый Backspace уйдёт на него, и слово сотрётся со
+    /// сдвигом (класс #16).
     /// undoOriginal — что вернёт откат триггером; nil — отката нет, состояние чистится.
     @discardableResult
     func replaceTail(deleteCount: Int, insert: String,
                      repostKey: (code: UInt16, flags: CGEventFlags)? = nil,
-                     clearInlineCompletion: Bool = false, undoOriginal: String? = nil,
+                     completionAfter: String? = nil, undoOriginal: String? = nil,
                      skipIfInlineCompletion: Bool = false) -> Bool {
         // Ревью M7: фокус не в тексте (список Finder с быстрым поиском по имени, таблица) —
         // Backspace и вставка ушли бы не туда. Только отдаём клавишу.
@@ -206,7 +210,7 @@ final class TextConverter {
             clearState()
         }
         var extra = 0
-        if clearInlineCompletion, let sel = selectedTextAX(), !sel.isEmpty {
+        if let typed = completionAfter, inlineCompletionFollows(typed) {
             // Ревью M6: под выделением — подсказка адресной строки, слово в поле — её начало
             // («weath» → weather.com). Исправление опечатки тут превратило бы его в «wrath».
             if skipIfInlineCompletion {
@@ -331,6 +335,39 @@ final class TextConverter {
         var selRaw: AnyObject?
         guard AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selRaw) == .success else { return nil }
         return selRaw as? String
+    }
+
+    /// Выделенная подсказка автодополнения сразу за набранным (адресная строка дописывает
+    /// «weather.com» к «weath»): первый Backspace снимет её, а не букву (#47, класс #16).
+    /// Выделение в другом месте (вывод в терминале) — не подсказка, лишний Backspace стёр бы
+    /// чужую букву. AX молчит — подсказки нет, как и раньше.
+    func inlineCompletionFollows(_ typed: String) -> Bool {
+        let n = (typed as NSString).length
+        guard n > 0, let element = focusedElement() else { return false }
+        var raw: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &raw) == .success,
+              let value = raw, CFGetTypeID(value) == AXValueGetTypeID() else { return false }
+        var sel = CFRange()
+        guard AXValueGetValue(value as! AXValue, .cfRange, &sel), sel.length > 0, sel.location >= n else { return false }
+        return textBefore(element, location: sel.location, length: n) == typed
+    }
+
+    /// length символов поля перед location: параметризованным атрибутом, а без него — из
+    /// значения поля, если оно не огромное.
+    private func textBefore(_ element: AXUIElement, location: Int, length: Int) -> String? {
+        var range = CFRange(location: location - length, length: length)
+        var raw: AnyObject?
+        if let arg = AXValueCreate(.cfRange, &range),
+           AXUIElementCopyParameterizedAttributeValue(element, kAXStringForRangeParameterizedAttribute as CFString,
+                                                      arg, &raw) == .success,
+           let s = raw as? String {
+            return s
+        }
+        if AXUIElementCopyAttributeValue(element, kAXNumberOfCharactersAttribute as CFString, &raw) == .success,
+           let count = raw as? Int, count > 10_000 { return nil }
+        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &raw) == .success,
+              let text = raw as? NSString, location <= text.length else { return nil }
+        return text.substring(with: NSRange(location: location - length, length: length))
     }
 
     /// Выделение через Cmd+C — только в текстовом поле: в списках Finder копируются имена

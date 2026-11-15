@@ -439,7 +439,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let keys = self.keyboardMonitor.currentWordKeys
                 let prevKeys = self.keyboardMonitor.prevWordKeys
                 let bc = self.keyboardMonitor.boundaryCount
-                if self.textConverter.convert(wordKeys: keys, prevWordKeys: prevKeys, boundaryCount: bc) {
+                let fixed = self.twoCapsFixed(keys.isEmpty ? prevKeys : keys)
+                if self.textConverter.convert(wordKeys: keys, prevWordKeys: prevKeys, boundaryCount: bc,
+                                              convertedOverride: fixed) {
                     self.keyboardMonitor.markConverted()
                     LayoutSwitcher.switchToOpposite()
                     self.updateStatusIcon()
@@ -723,6 +725,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    /// #49: «Исправлять две заглавные» и на ручном триггере — «RJulf» → «Когда», а не «КОгда».
+    /// nil — исправлять нечего (или опция выключена, или Caps Lock).
+    private func twoCapsFixed(_ keys: [TypedKey]) -> String? {
+        guard SettingsManager.shared.fixTwoCaps, !keys.isEmpty, !keys.contains(where: { $0.caps }),
+              let pair = DynamicKeyMapping.convertKeys(keys),
+              let langs = LayoutSwitcher.currentAndOppositeLanguage() else { return nil }
+        let oth = String(langs.opposite.prefix(2))
+        return TextFixes.fixTwoCaps(pair.converted, isWord: { Dict.isValidTarget($0, lang: oth) })
+    }
+
     /// Конвейер на пробеле: пробел уже в поле, стираем слово с пробелами и печатаем результат.
     private func handleAutoConvert() {
         rslog("auto: fired")
@@ -848,7 +860,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Сразу, без main.async (ревью M2): замена встаёт в очередь инжекта раньше, чем
         // успеют прийти клавиши, нажатые после Enter.
         let replaced = textConverter.replaceTail(deleteCount: ctx.keys.count, insert: insert,
-                                                 repostKey: (keyCode, flags), clearInlineCompletion: true,
+                                                 repostKey: (keyCode, flags), completionAfter: ctx.pair.original,
                                                  skipIfInlineCompletion: isTypo)
         lastAutoConverted = nil
         if replaced, switchLayout {   // ревью M1: замены не было — раскладку не трогаем
