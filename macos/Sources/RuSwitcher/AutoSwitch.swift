@@ -326,17 +326,26 @@ enum LayoutDetector {
         s == s.uppercased() && s != s.lowercased()
     }
 
-    /// «RJulf» → «КОгда» (#49): две заглавные в начале — опечатка, а не код, её решает словарь.
-    /// От четырёх букв (на трёх образ единиц бывает словом: «GHz» → «ПРя») и только если образ
-    /// тоже такой: «ДЖош» → «L:ji» словарь режет на куски и принимает.
+    /// «RJulf» → «КОгда», «NT,z» → «ТЕбя» (#49): две заглавные в начале — опечатка, а не код,
+    /// её решает словарь. Форму «две заглавные, дальше строчные» требуем от образа: в набранном
+    /// на месте б, ж, ю стоят знаки. От четырёх букв (на трёх образ единиц бывает словом:
+    /// «GHz» → «ПРя»). Образ не по форме («ДЖош» → «L:ji») словарь режет на куски и принимает —
+    /// такие не берём. Смесь латиницы и кириллицы («ЗДecь» из субтитров) остаётся кодом.
     static func isTwoCapsTypo(_ typed: String, _ converted: String) -> Bool {
-        typed.count >= 4 && TextFixes.isTwoCaps(typed) && TextFixes.isTwoCaps(converted)
+        let t = Array(typed)
+        return converted.count >= 4 && TextFixes.isTwoCaps(converted) && t.count == converted.count
+            && t[0].isUppercase && t[1].isUppercase && !t.dropFirst(2).contains(where: { $0.isUppercase })
+            && !mixesLatinAndCyrillic(typed)
     }
 
     /// Похоже на программный идентификатор: внутренняя заглавная (camelCase/PascalCase)
     /// или смешение латиницы и кириллицы в одном токене → почти всегда код, не слово.
     static func looksLikeCodeIdentifier(_ s: String) -> Bool {
         for (i, c) in s.enumerated() where i > 0 && c.isUppercase { return true }
+        return mixesLatinAndCyrillic(s)
+    }
+
+    static func mixesLatinAndCyrillic(_ s: String) -> Bool {
         var hasLatin = false, hasCyrillic = false
         for u in s.unicodeScalars {
             switch u.value {
