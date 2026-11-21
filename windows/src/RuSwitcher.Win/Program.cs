@@ -119,6 +119,17 @@ internal static class Program
                 return;
             }
 
+            if (vk == KeystrokeBuffer.VK_BACK)
+            {
+                // Mirror manual deletion in the buffer (see KeystrokeBuffer.PopLast). Ctrl+Backspace
+                // deletes a whole word — the buffer can't mirror that, so reset (precision-first).
+                // The word on screen changed either way → a pending reconvert no longer applies.
+                if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0) buffer.Reset();
+                else buffer.PopLast();
+                Converter.ClearReconvert();
+                return;
+            }
+
             if (KeystrokeBuffer.IsTypingKey(vk))
             {
                 Converter.ClearReconvert();  // typing changed the word — the pending undo no longer applies
@@ -136,6 +147,19 @@ internal static class Program
             switchDetector.OnKeyUp(vk);
         };
         hook.Install();
+
+        // A mouse click moves the caret or selects — the buffer no longer mirrors the word at
+        // the caret, and a pending reconvert/cycle would delete the wrong text. Resetting here
+        // also routes the next trigger to the SELECTION path after a mouse selection (the
+        // last-word path used to eat the selection with its backspaces).
+        using var mouse = new MouseHook();
+        mouse.ButtonDown += () =>
+        {
+            if (!enabled) return;
+            buffer.Reset();
+            Converter.ClearReconvert();
+        };
+        mouse.Install();
 
         // Per-app layout memory (issue): restores each app's last-used layout on focus. Off by default.
         using var appTracker = new AppLayoutTracker();

@@ -18,6 +18,14 @@ public sealed class KeystrokeBuffer
     public void Append(TypedKey key) => _current.Add(key);
     public void Reset() => _current.Clear();
 
+    /// <summary>Manual Backspace: drop the last buffered key so the buffer keeps mirroring the
+    /// screen — converting with a stale buffer re-types the deleted keys too («dsk,…» after a
+    /// typo + Backspace became «вылбылетает»). The macOS monitor does the same (issue #21).</summary>
+    public void PopLast()
+    {
+        if (_current.Count > 0) _current.RemoveAt(_current.Count - 1);
+    }
+
     /// <summary>Keys that end a word (and clear the buffer): space, Enter, Tab, Esc.</summary>
     public static bool IsWordBoundary(uint vkCode) =>
         vkCode is VK_SPACE or VK_RETURN or VK_TAB or VK_ESCAPE;
