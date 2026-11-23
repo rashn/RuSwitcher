@@ -40,6 +40,7 @@ final class SettingsManager: @unchecked Sendable {
         static func hotkeySide(_ slot: String) -> String { "com.ruswitcher.hotkey.\(slot).side" }
         static func hotkeyDouble(_ slot: String) -> String { "com.ruswitcher.hotkey.\(slot).double" }
         static let autoConvert = "com.ruswitcher.autoConvert"
+        static let instantConvert = "com.ruswitcher.instantConvert"
         static let smartConversion = "com.ruswitcher.smartConversion"
         static let convertByText = "com.ruswitcher.convertByText"
         static let convertWholeLine = "com.ruswitcher.convertWholeLine"
@@ -274,6 +275,16 @@ final class SettingsManager: @unchecked Sendable {
     var autoConvert: Bool {
         get { defaults.bool(forKey: Keys.autoConvert) }
         set { defaults.set(newValue, forKey: Keys.autoConvert) }
+    }
+
+    /// Конверсия прямо во время набора, не дожидаясь конца слова (поведение Caramba Switcher):
+    /// решение принимает InstantDetector по буквосочетаниям и началам слов, обычно на 2-3-й букве.
+    /// Надстройка над autoConvert — без него молчит: это тот же авто-путь, только раньше. Модели
+    /// строятся из частотных паков, поэтому без «Расширенного словаря» тоже молчит.
+    /// По умолчанию ВЫКЛ: правка текста под руками — вещь, которую включают осознанно.
+    var instantConvert: Bool {
+        get { defaults.bool(forKey: Keys.instantConvert) }
+        set { defaults.set(newValue, forKey: Keys.instantConvert) }
     }
 
     /// issue #22 (вариант B): умная по-словная конверсия выделения — флипаем только слова не в

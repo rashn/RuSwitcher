@@ -39,6 +39,27 @@ final class WordPack: @unchecked Sendable {
         return false
     }
 
+    /// Начинается ли с `prefix` хоть одно слово пака. Тот же двоичный поиск, только ищем
+    /// первое слово не меньше префикса: в отсортированном списке все слова с этим началом
+    /// идут подряд сразу за ним. Нужно конверсии на лету — она судит по незаконченному слову.
+    func hasPrefix(_ prefix: String) -> Bool {
+        let q = Array(prefix.utf8)
+        guard !q.isEmpty else { return false }
+        var lo = 0, hi = count
+        while lo < hi {
+            let mid = (lo + hi) >> 1
+            if Self.compare(bytes[line(mid)], q[...]) < 0 { lo = mid + 1 } else { hi = mid }
+        }
+        return lo < count && bytes[line(lo)].starts(with: q)
+    }
+
+    /// Все слова пака по порядку — для разовой сборки таблиц конверсии на лету.
+    func forEachWord(_ body: (String) -> Void) {
+        for i in 0..<count {
+            if let w = String(bytes: bytes[line(i)], encoding: .utf8) { body(w) }
+        }
+    }
+
     private func line(_ i: Int) -> Range<Int> {
         let end = i + 1 < count ? Int(starts[i + 1]) - 1 : bytes.count - 1
         return Int(starts[i])..<end

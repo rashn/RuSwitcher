@@ -47,8 +47,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         // Прогрев NSSpellChecker: первый чек поднимает XPC AppleSpell (сотни мс на main) —
         // прогреваем в тихую паузу после старта, а не на первом пробеле пользователя.
+        // Заодно собираем модели конверсии на лету из частотных паков: разбор ~50 тыс. слов
+        // стоит десятки мс — пусть они случатся тут, а не на первой набранной букве.
         DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-            Task { @MainActor in Dict.warmUp() }
+            Task { @MainActor in
+                Dict.warmUp()
+                InstantDetector.warmUp()
+            }
         }
 
         // Скрытая иконка: reopen-событие приходит только УЖЕ работающему приложению.
@@ -496,6 +501,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         keyboardMonitor.onWordBoundary = { [weak self] in
             self?.handleAutoConvert()
         }
+        keyboardMonitor.onTypingLetter = { [weak self] in
+            self?.handleInstantConvert()
+        }
         keyboardMonitor.onWordEndSync = { [weak self] key, keys, code, flags in
             self?.handleWordEndSync(key: key, keys: keys, keyCode: code, flags: flags) ?? false
         }
@@ -736,9 +744,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return TextFixes.fixTwoCaps(pair.converted, isWord: { Dict.isValidTarget($0, lang: oth) })
     }
 
+    /// Конверсия на лету: то же, что конверсия конвейера, но по НЕЗАКОНЧЕННОМУ слову — не ждём
+    /// конца слова, а решаем по буквосочетаниям и началам слов (InstantDetector), обычно на
+    /// 2-3-й букве. Гейты те же, что у конвейера, плюс два своих: Spotlight (там стирание по
+    /// счётчику ест лишнюю букву, issue #16) и удалёнка (латентность Screen Sharing делает
+    /// посимвольный путь ненадёжным) — оба отдаём конвейеру конца слова.
+    private func handleInstantConvert() {
+        // ПОРЯДОК ПРОВЕРОК ВАЖЕН: метод зовётся на КАЖДУЮ набранную букву, поэтому сперва идёт
+        // только дешёвое — настройки из памяти, кэшированный маппинг клавиш и сам детектор
+        // (поиск в памяти). Дорогие системные запросы — frontmostApplication (синхронный IPC),
+        // secure-input, AX-проба Spotlight — стоят ПОСЛЕ вердикта: их цена платится раз в
+        // несколько слов, а не 10 раз в секунду, и фича не становится источником фризов.
+        let settings = SettingsManager.shared
+        guard settings.autoSwitchEnabled, settings.autoConvert, settings.instantConvert,
+              !settings.remoteDesktopMode else { return }
+
+        let keys = keyboardMonitor.currentWordKeys
+        guard keys.count >= InstantDetector.minLength,
+              keys.allSatisfy({ $0.char == nil }),   // проброшенный удалёнкой текст — не наш случай
+              let pair = DynamicKeyMapping.convertKeys(keys),
+              let langs = LayoutSwitcher.currentAndOppositeLanguage() else { return }
+
+        let capsLock = keys.contains { $0.caps }
+        guard InstantDetector.shouldSwitch(typed: pair.original, converted: pair.converted,
+                                           currentLang: langs.current, otherLang: langs.opposite,
+                                           capsLock: capsLock) else { return }
+
+        // Детектор сказал «переключить» — вот теперь платим за политики и системные пробы.
+        // never-convert проверяем ПО ПРЕФИКСУ: слово ещё набирается, и точное сравнение
+        // пропустило бы запрет — «ghbdtn» конвертнулось бы на «ghb», не дойдя до себя.
+        if AutoSwitchPolicy.isDeniedPrefix(pair.original, pair.converted) { rslog("instant: bail denied-word"); return }
+        guard !AutoSwitchPolicy.secureInputActive else { rslog("instant: bail secure-input"); return }
+        if AutoSwitchPolicy.isDeniedApp(NSWorkspace.shared.frontmostApplication?.bundleIdentifier) { return }
+        if SpotlightAX.isActive() { return }
+
+        rslog("instant: convert \(keys.count) keys \(langs.current)→\(langs.opposite)")  // слова не логируем (приватность)
+        // Сначала пробуем починить хвост фразы: слова перед текущим могли проскочить, пока
+        // язык фразы был неясен («dj gfitn» → «во пашет»). Если в голове чинить нечего,
+        // метод отказывается, и делаем обычную однословную замену.
+        let toCyrillic = SmartConvert.isCyrillic(lang: langs.opposite)
+        let converted = textConverter.convertLineTail(lineKeys: keyboardMonitor.lineKeys,
+                                                      tailLength: keys.count,
+                                                      tailConverted: pair.converted,
+                                                      toCyrillic: toCyrillic)
+            || textConverter.convert(wordKeys: keys, prevWordKeys: [], boundaryCount: 0)
+        guard converted else { return }
+        keyboardMonitor.markConverted()
+        LayoutSwitcher.switchToOpposite()
+        updateStatusIcon()
+        // lastAutoConverted намеренно НЕ ставим: он кормит предложение «запомнить слово в
+        // исключения» после отката, а здесь слово ещё не дописано — в список уехал бы
+        // огрызок вроде «ghb», да ещё и запретил бы по префиксу все слова на «при».
+        lastAutoConverted = nil
+    }
+
     /// Конвейер на пробеле: пробел уже в поле, стираем слово с пробелами и печатаем результат.
     private func handleAutoConvert() {
         rslog("auto: fired")
+        // Слово закончено пробелом — следующее конверсия на лету судит заново, даже если
+        // конвейер ниже его сконвертировал (markConverted взводит флаг «слово обработано»).
+        defer { keyboardMonitor.allowNextWord() }
         let bc = keyboardMonitor.boundaryCount
         guard let (action, ctx) = evaluateWordEnd(keys: keyboardMonitor.prevWordKeys) else { return }
         let frontID = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
