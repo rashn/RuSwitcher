@@ -70,6 +70,9 @@ final class KeyboardMonitor: @unchecked Sendable {
     private var onAltReconvert: (() -> Void)?
     /// Авто-конвертация: вызывается (async) на границе слова, когда включён autoConvert.
     var onWordBoundary: (() -> Void)?
+    /// Конверсия на лету (как Caramba): вызывается (async) на каждой букве незаконченного
+    /// слова, когда включён instantConvert. Решение принимает InstantDetector.
+    var onTypingLetter: (() -> Void)?
     /// 3.5.0b: Enter/Tab на конце слова — синхронно из колбэка tap'а. true — клавиша
     /// придержана: приложение перепечатает слово и отправит её само (TextConverter.replaceTail).
     var onWordEndSync: ((WordEndKey, [TypedKey], UInt16, CGEventFlags) -> Bool)?
@@ -201,6 +204,7 @@ final class KeyboardMonitor: @unchecked Sendable {
     }
 
     func markConverted() {
+        let midWord = currentWordLength > 0
         currentWordLength = 0
         wordBeforeBoundaryLength = 0
         boundaryCount = 0
@@ -208,7 +212,25 @@ final class KeyboardMonitor: @unchecked Sendable {
         prevWordKeys = []
         lineKeys = []
         keysTypedSinceConversion = false
+        // Слово уже обработано — до конца слова больше не решаем за пользователя. Буфер после
+        // конверсии начинается с середины слова, и «вет» от «привет» для детекторов выглядит
+        // как отдельное слово: без этого флага остаток вида «ыть» (в EN-образе «syn» — вполне
+        // английское начало) улетал бы обратно в другую раскладку, а на Enter/Tab огрызок
+        // слова попадал бы в конвейер конца слова. Только ПОСРЕДИ слова: Alt после пробела
+        // чинит прошлое слово, а следующее ещё не начато — глушить его нельзя.
+        wordHandled = midWord
     }
+
+    /// Слово закончено — со следующего решаем заново. Нужен пути на пробеле: он приходит
+    /// АСИНХРОННО, и если пользователь успел начать следующее слово, его markConverted()
+    /// взвёл бы флаг задним числом — глуша конверсию на лету на всё это слово.
+    func allowNextWord() {
+        wordHandled = false
+    }
+
+    /// Слово уже конвертировали (авто или руками) — дальше по нему не решаем, см. markConverted().
+    /// Снимается на границе слова и любом сбросе буфера.
+    private var wordHandled = false
 
     /// issue #24 / скептик 3.2.0: системная смена раскладки (globe / Ctrl-Space) не проходит через
     /// наш обработчик клавиш, поэтому буфер строки декодировался бы старой раскладкой. Сбрасываем
@@ -224,14 +246,27 @@ final class KeyboardMonitor: @unchecked Sendable {
         currentWordKeys = []
         prevWordKeys = []
         lineKeys = []
+        wordHandled = false
     }
 
     /// Завершилось слово на пробеле — если включён хоть один шаг конвейера (автоконверсия,
     /// автозамена, правка), дёргаем авто-путь (async, чтобы не блокировать доставку события).
     private func fireWordBoundary() {
         let s = SettingsManager.shared
-        guard s.wordEndOnSpace, s.wordEndPipelineActive else { return }
+        guard s.wordEndOnSpace, s.wordEndPipelineActive, !wordHandled else { return }
         let cb = onWordBoundary
+        DispatchQueue.main.async { cb?() }
+    }
+
+    /// Набрана очередная буква незаконченного слова — дёргаем путь конверсии на лету.
+    /// Как и граница слова, уходит async: в колбэке тапа нельзя ни считать, ни ждать.
+    /// Сначала проверяем поля в памяти и только потом настройки: это самый горячий путь в
+    /// приложении (каждое нажатие), и при выключенной фиче он обязан стоить почти ничего.
+    private func fireTypingLetter() {
+        guard currentWordLength >= InstantDetector.minLength, !wordHandled else { return }
+        let s = SettingsManager.shared
+        guard s.instantConvert, s.autoConvert, s.autoSwitchEnabled else { return }
+        let cb = onTypingLetter
         DispatchQueue.main.async { cb?() }
     }
 
@@ -243,7 +278,10 @@ final class KeyboardMonitor: @unchecked Sendable {
         // Ревью M4: новое нажатие той же клавиши — прежний keyUp уже не придёт (tap мог
         // выключиться по таймауту), не глотаем чужой.
         if heldKeyUp == keyCode, !autorepeat { heldKeyUp = nil }
-        guard interceptBoundaryKeys, !autorepeat, currentWordLength > 0, !currentWordKeys.isEmpty else { return false }
+        // wordHandled: слово уже сконвертировано на лету, в буфере только его хвост («вет»
+        // от «привет») — решать по огрызку нельзя, клавиша уходит как есть.
+        guard interceptBoundaryKeys, !autorepeat, !wordHandled,
+              currentWordLength > 0, !currentWordKeys.isEmpty else { return false }
         let mods = flags.intersection([.maskCommand, .maskControl, .maskAlternate])
         let settings = SettingsManager.shared
         let key: WordEndKey
@@ -353,6 +391,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             }
             currentWordLength = 0
             currentWordKeys = []
+            wordHandled = false   // началось новое слово — снова можно решать
             if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24: пробел в буфер строки (не ведущий)
             return
         }
@@ -397,6 +436,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             boundaryCount = 0
             prevWordKeys = []
             playLayoutSoundIfArmed()
+            fireTypingLetter()   // конверсия на лету: решаем по незаконченному слову
         } else {
             // Esc, F-клавиши, и т.д. — полный сброс
             fullReset()
@@ -420,6 +460,7 @@ final class KeyboardMonitor: @unchecked Sendable {
             }
             currentWordLength = 0
             currentWordKeys = []
+            wordHandled = false   // началось новое слово — снова можно решать
             if !lineKeys.isEmpty { lineKeys.append(TypedKey(keyCode: KC.space, shift: false, caps: false, char: " ")) }  // #24
             return
         }

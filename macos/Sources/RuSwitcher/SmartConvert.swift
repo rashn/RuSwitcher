@@ -20,7 +20,8 @@ import Foundation
 enum SmartConvert {
     private enum Script { case cyr, lat, other, mixed }
     /// keep несёт причину для отладочного лога (#51): o — не та письменность, a — акроним или
-    /// код, s — частое короткое слово, v — слово словаря.
+    /// код, s — частое короткое слово, v — слово словаря. Для хвоста фразы при конверсии на
+    /// лету «v» — стоп-сигнал: верное слово в голове фразы не переписываем (см. lineTail).
     private enum WordDecision { case keep(Character), flip(String, Script), unresolved }
 
     // Частотные однобуквенные слова — доп. страховка для флипа ОДИНОЧНЫХ букв по сигналу.
@@ -35,6 +36,59 @@ enum SmartConvert {
               Dict.isAvailable(latLang), Dict.isAvailable(cyrLang) else {
             return DynamicKeyMapping.convert(text)   // не Lat+Cyr пара — обычный путь
         }
+        return run(text, latLang: latLang, cyrLang: cyrLang, forcedTarget: nil)
+    }
+
+    /// Хвост фразы при конверсии на лету: направление УЖЕ известно — его определил
+    /// InstantDetector по текущему слову. Отличие от selection(): сигнал не выводится из
+    /// соседей, а задан снаружи, поэтому короткие двусмысленные слова дотягиваются даже
+    /// когда весь остальной хвост словарь подтвердить не смог — ровно случай «dj gfitn»,
+    /// где «gfitn» опознано как «пашет», а «dj» само по себе честное английское слово.
+    ///
+    /// nil — «не трогать голову»: вызывающий тогда заменяет только текущее слово.
+    ///
+    /// ДОПУСК ГОЛОВЫ. Правим голову, только если КАЖДОЕ её слово — заведомый мусор: либо
+    /// словарь подтверждает флип, либо слово короче трёх букв (там словарь и так не судья),
+    /// либо это пунктуация с цифрами. Одно слово, подтверждённое словарём своего языка, или
+    /// одно неразрешённое длинное (имя, бренд, термин) — отказ целиком.
+    ///
+    /// Ради чего так строго (боевая находка в форке): ложное срабатывание на двух буквах
+    /// уносило с собой уже набранную верную фразу. Длинные слова словарь отстаивал сам, а вот
+    /// короткие («и», «в», «не») дотягивались по заданному направлению и превращались в
+    /// латинский мусор — 25 символов готового текста за раз. Цена ошибки должна быть одно
+    /// слово, откатываемое триггером.
+    @MainActor
+    static func lineTail(_ text: String, toCyrillic: Bool) -> String? {
+        guard let (latLang, cyrLang) = classifyPair(),
+              Dict.isAvailable(latLang), Dict.isAvailable(cyrLang) else { return nil }
+        guard headIsGarbage(text, latLang: latLang, cyrLang: cyrLang) else { return nil }
+        return run(text, latLang: latLang, cyrLang: cyrLang, forcedTarget: toCyrillic ? .cyr : .lat)
+    }
+
+    /// Целиком ли голова состоит из мусора — можно ли её переписывать (см. допуск в lineTail).
+    @MainActor
+    private static func headIsGarbage(_ text: String, latLang: String, cyrLang: String) -> Bool {
+        for (i, tok) in tokenize(text).enumerated() where tok.isWord {
+            switch decideWord(tok.str, sentenceStart: i == 0, latLang: latLang, cyrLang: cyrLang) {
+            case .keep("v"):
+                rslog("instant: line tail bail — в голове словарное слово")
+                return false
+            case .unresolved where letterCore(tok.str).count >= 3:
+                rslog("instant: line tail bail — в голове нераспознанное слово")
+                return false   // имя/бренд/термин: словарь его флип не подтвердил, не трогаем
+            default:
+                continue       // мусор с подтверждённым флипом, короткое слово, пунктуация
+            }
+        }
+        return true
+    }
+
+    /// Кириллический ли язык (нужно вызывающему, чтобы задать направление lineTail).
+    static func isCyrillic(lang: String) -> Bool { isCyrillicLang(lang) }
+
+    @MainActor
+    private static func run(_ text: String, latLang: String, cyrLang: String,
+                            forcedTarget: Script?) -> String {
         let toks = tokenize(text)
         var results = [String?](repeating: nil, count: toks.count)
         var pending: [Int] = []                  // неразрешённые токены — решаем в пасе 2 по сигналу
@@ -51,7 +105,8 @@ enum SmartConvert {
             }
             let atStart = sentenceStart
             sentenceStart = tok.str.last.map { ".!?…".contains($0) } ?? false
-            switch decideWord(tok.str, sentenceStart: atStart, latLang: latLang, cyrLang: cyrLang) {
+            switch decideWord(tok.str, sentenceStart: atStart, latLang: latLang, cyrLang: cyrLang,
+                              forcedTarget: forcedTarget) {
             case let .keep(why):
                 results[i] = tok.str
                 codes[i] = "\(why)\(tok.str.count)"
@@ -69,8 +124,9 @@ enum SmartConvert {
         // и неразрешённые токены («до», имена, одиночные буквы) туда же. «z yt vjue»→«я не могу»,
         // «иду до дома», «Вася пришёл». Но «iPhone стоит»/«витамин c» — 0 флипов → сигнала нет →
         // не трогаем. Разнобой (оба скрипта флипались) → сигнала нет.
-        let target: Script? = (flippedCyr > 0 && flippedLat == 0) ? .cyr
-                            : (flippedLat > 0 && flippedCyr == 0) ? .lat : nil
+        let target: Script? = forcedTarget
+                            ?? ((flippedCyr > 0 && flippedLat == 0) ? .cyr
+                            :   (flippedLat > 0 && flippedCyr == 0) ? .lat : nil)
 
         // Пас 2 — неразрешённые по сигналу.
         for i in pending {
@@ -87,7 +143,8 @@ enum SmartConvert {
     /// Решение по слову. .flip несёт письменность РЕЗУЛЬТАТА (сигнал для пасса 2); .unresolved —
     /// кандидат на флип по сигналу соседей (мусор в своём скрипте, но словарём не подтверждён).
     @MainActor
-    private static func decideWord(_ w: String, sentenceStart: Bool, latLang: String, cyrLang: String) -> WordDecision {
+    private static func decideWord(_ w: String, sentenceStart: Bool, latLang: String, cyrLang: String,
+                                   forcedTarget: Script? = nil) -> WordDecision {
         let core = letterCore(w)
         let script = dominantScript(core)
         guard core.count >= 1, script == .cyr || script == .lat else { return .keep("o") }
@@ -109,12 +166,18 @@ enum SmartConvert {
 
         // 2 буквы — только частотный список (NSSpellChecker на длине 2 ненадёжен), как decide.
         if core.count == 2 {
-            if let cur = ShortWords.common(wordLang), cur.contains(core.lowercased()) { return .keep("s") }
             let whole = DynamicKeyMapping.convertBidirectional(w)
             let wc = letterCore(whole)
-            if wc.count == 2, let oth = ShortWords.common(flipLang), oth.contains(wc.lowercased()) {
+            let flipIsCommon = wc.count == 2 && (ShortWords.common(flipLang)?.contains(wc.lowercased()) ?? false)
+            // Неоднозначные токены (vs, dj, kb, ye) лежат в ОБОИХ списках, чтобы без контекста
+            // отклоняться в обе стороны — «Spain vs Italy» не должно стать «Spain мы Italy».
+            // Но когда направление задано снаружи (конверсия на лету уже опознала язык фразы по
+            // соседнему слову), контекст как раз есть: «dj» посреди русской фразы — это «во».
+            if let forcedTarget, flippedScript == forcedTarget, flipIsCommon {
                 return .flip(whole, flippedScript)
             }
+            if let cur = ShortWords.common(wordLang), cur.contains(core.lowercased()) { return .keep("s") }
+            if flipIsCommon { return .flip(whole, flippedScript) }
             return .unresolved   // не в списке → по сигналу соседей
         }
 

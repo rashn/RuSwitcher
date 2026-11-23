@@ -11,6 +11,7 @@ final class SettingsWindowController {
     private var debugLogCheckbox: NSButton?
     private var caretFlagCheckbox: NSButton?
     private var autoConvertCheckbox: NSButton?      // #4: синк тумблера меню → окно настроек
+    private var instantConvertCheckbox: NSButton?   // надстройка над автоконверсией — гаснет вместе с ней
     private var remoteDesktopCheckbox: NSButton?    // #5: то же (опционален — за фичефлагом)
     private var layout1Popup: NSPopUpButton?
     private var layout2Popup: NSPopUpButton?
@@ -94,6 +95,7 @@ final class SettingsWindowController {
     /// #4/#5: синхронизировать чекбоксы с переключением из меню-бара.
     func updateAutoConvertState(_ enabled: Bool) {
         autoConvertCheckbox?.state = enabled ? .on : .off
+        instantConvertCheckbox?.isEnabled = enabled   // без автоконверсии конверсия на лету не работает
     }
     func updateRemoteDesktopState(_ enabled: Bool) {
         remoteDesktopCheckbox?.state = enabled ? .on : .off
@@ -612,6 +614,20 @@ final class SettingsWindowController {
         acHint.font = .systemFont(ofSize: 11); acHint.textColor = .secondaryLabelColor
         view.addSubview(acHint)
         y -= 38
+
+        // Конверсия на лету — надстройка над автоконверсией: с отступом и гаснет вместе с ней
+        let instant = NSButton(checkboxWithTitle: L10n.settingsInstantConvert, target: self, action: #selector(instantConvertChanged))
+        instant.frame = NSRect(x: 40, y: y - 22, width: 400, height: 22)
+        instant.state = SettingsManager.shared.instantConvert ? .on : .off
+        instant.isEnabled = SettingsManager.shared.autoConvert
+        view.addSubview(instant)
+        instantConvertCheckbox = instant
+        y -= 24
+        let icHint = NSTextField(wrappingLabelWithString: L10n.settingsInstantConvertHint)
+        icHint.frame = NSRect(x: 60, y: y - 44, width: 380, height: 44)
+        icHint.font = .systemFont(ofSize: 11); icHint.textColor = .secondaryLabelColor
+        view.addSubview(icHint)
+        y -= 50
 
         // 3.5.0b: на каких клавишах срабатывает конвейер (автоконверсия, автозамена, правка)
         let s = SettingsManager.shared
@@ -1187,7 +1203,20 @@ final class SettingsWindowController {
     @objc private func autoConvertChanged(_ sender: NSButton) {
         let enabled = sender.state == .on
         SettingsManager.shared.autoConvert = enabled
+        instantConvertCheckbox?.isEnabled = enabled
         onAutoConvertChanged?(enabled)
+    }
+
+    @objc private func instantConvertChanged(_ sender: NSButton) {
+        let enabled = sender.state == .on
+        SettingsManager.shared.instantConvert = enabled
+        // Модели строятся из частотных паков, своих данных у фичи нет. Словари выключены —
+        // включаем их тем же путём, что и галочка «Расширенный словарь» (с её статусом и
+        // ошибками): иначе галочка конверсии на лету стояла бы, а работать было бы нечему.
+        if enabled, !SettingsManager.shared.frequencyPacks, let packs = freqPacksCheckbox {
+            packs.state = .on
+            freqPacksChanged(packs)
+        }
     }
 
     @objc private func remoteDesktopChanged(_ sender: NSButton) {
